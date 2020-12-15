@@ -1,0 +1,9 @@
+274 名無しさん＠編集中 [sage] 2013/12/30(月) 09:14:29.34 ID:OaBl/aTU Be:
+    >>269
+    Readmeにある方法でID書換えTOOL(FX2WRID.exe)にてIDを"0"から"1"に書換え。
+    BonDriver_Bulldog.dll ->BonDriver_Bulldog_1.dllに変更して正常に動作しました。
+    チューナーの個別指定可能です。
+    2回目以降のID変更は改造が必要です。
+    R5(0Ω)を削除。J1(ジャンパー)追加。
+
+    http://i.imgur.com/cwAMEMo.png?1 

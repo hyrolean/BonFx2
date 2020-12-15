@@ -1,0 +1,254 @@
+[ELCoder.ProjectFile] {
+  <Version> "Nehushtan-2013.05.31"
+  [Projects] {
+    [BonFx2] {
+      <Priority> 0
+      <LastImportedFolder> "C:\\Software Files\\Application\\Launcher\\STLaunch"
+      <LastImportedFilter>
+        "*.c;*.cpp;*.l;*.ly;*.y;*.h;*.hpp;*.log;*.txt;*.ini;*.rc;*.sln;*.vcxproj;*.vcp"
+        "roj"
+      <LastImportedFromSubFolders> y
+      <LastImportedFromSubFoldersAutoMakeNode> y
+      <LastImportedDeadFilesDeleting> y
+      <LastImportedEmptyNodesDeleting> y
+      [nodes] {
+        [bond] {
+          <ReadOnly> n
+          <AbsolutePath> n
+          <Priority> 1
+          [nodes] {
+            [BonDriver_Bulldog] {
+              <ReadOnly> n
+              <AbsolutePath> n
+              <Priority> 0
+              [files] {
+                [bond\\BonDriver_Bulldog\\BonDriver_Bulldog.ch - BSAlmighty.txt] {}
+                [bond\\BonDriver_Bulldog\\BonDriver_Bulldog.ch - MHz.txt] {}
+                [bond\\BonDriver_Bulldog\\BonDriver_Bulldog.ch - TSID.txt] {
+                  <FileTag> "BULLDOG_CHFILE_TSID"
+                }
+                [bond\\BonDriver_Bulldog\\BonDriver_Bulldog.ch.txt] {}
+                [bond\\BonDriver_Bulldog\\BonDriver_Bulldog.ini] {}
+                [bond\\BonDriver_Bulldog\\readme_mod.txt] {}
+              }
+              [nodes] {
+                [src] {
+                  <ReadOnly> n
+                  <AbsolutePath> n
+                  <Priority> 0
+                  [files] {
+                    [bond\\BonDriver_Bulldog\\src\\BonDriver.cpp] {}
+                    [bond\\BonDriver_Bulldog\\src\\BonDriver.rc] {}
+                    [bond\\BonDriver_Bulldog\\src\\BonDriver_Bulldog.vcproj] {}
+                    [bond\\BonDriver_Bulldog\\src\\BonDriver_Bulldog.vcxproj] {}
+                    [bond\\BonDriver_Bulldog\\src\\BonTuner.cpp] {}
+                    [bond\\BonDriver_Bulldog\\src\\BonTuner.h] {}
+                    [bond\\BonDriver_Bulldog\\src\\Resource.h] {}
+                    [bond\\BonDriver_Bulldog\\src\\stdafx.cpp] {}
+                    [bond\\BonDriver_Bulldog\\src\\stdafx.h] {}
+                  }
+                  [nodes] {
+                    [TC90532] {
+                      <ReadOnly> n
+                      <AbsolutePath> n
+                      <Priority> 0
+                      [files] {
+                        [bond\\BonDriver_Bulldog\\src\\TC90532\\MxL5007.cpp] {}
+                        [bond\\BonDriver_Bulldog\\src\\TC90532\\MxL5007.h] {}
+                        [bond\\BonDriver_Bulldog\\src\\TC90532\\tc90532.cpp] {}
+                        [bond\\BonDriver_Bulldog\\src\\TC90532\\tc90532.h] {}
+                      }
+                      [nodes] {}
+                    }
+                  }
+                }
+              }
+            }
+            [BonDriver_Ux] {
+              <ReadOnly> n
+              <AbsolutePath> n
+              <Priority> 1
+              [nodes] {
+                [src] {
+                  <ReadOnly> n
+                  <AbsolutePath> n
+                  <Priority> 0
+                  [files] {
+                    [bond\\BonDriver_Ux\\src\\BonDriver.cpp] {}
+                    [bond\\BonDriver_Ux\\src\\BonDriver.rc] {}
+                    [bond\\BonDriver_Ux\\src\\BonDriver_Ux.vcproj] {}
+                    [bond\\BonDriver_Ux\\src\\BonDriver_Ux.vcxproj] {}
+                    [bond\\BonDriver_Ux\\src\\BonTuner.cpp] {}
+                    [bond\\BonDriver_Ux\\src\\BonTuner.h] {}
+                    [bond\\BonDriver_Ux\\src\\Resource.h] {}
+                    [bond\\BonDriver_Ux\\src\\stdafx.cpp] {}
+                    [bond\\BonDriver_Ux\\src\\stdafx.h] {}
+                  }
+                  [nodes] {}
+                }
+              }
+              [files] {
+                [bond\\BonDriver_Ux\\BonDriver_U3ID0.ch.txt] {
+                  <FileTag> "DT300_CHFILE"
+                }
+                [bond\\BonDriver_Ux\\BonDriver_U3ID0.ini] {}
+                [bond\\BonDriver_Ux\\ReadMe.txt] {}
+              }
+            }
+          }
+          [files] {}
+        }
+        [macro] {
+          <ReadOnly> n
+          <AbsolutePath> n
+          <Priority> 2
+          [files] {
+            [macro\\bon_each_update.ecm] {
+              <MacroControl> y
+            }
+            [macro\\ChConv_PT2Bulldog.ecm] {
+              <MacroControl> y
+            }
+            [macro\\ChConv_PT2DT300.ecm] {
+              <MacroControl> y
+            }
+            [macro\\ChRecord.ecm] {
+              <MacroControl> y
+            }
+            [macro\\Common.ecm] {
+              <MacroControl> y
+            }
+          }
+          [nodes] {}
+        }
+        [unified] {
+          <ReadOnly> n
+          <AbsolutePath> n
+          <Priority> 0
+          [files] {
+            [unified\\cusb2.cpp] {}
+            [unified\\cusb2.h] {}
+            [unified\\CyAPI.h] {}
+            [unified\\dbtrace.cpp] {}
+            [unified\\dbtrace.h] {}
+            [unified\\IBonDriver.h] {}
+            [unified\\IBonDriver2.h] {}
+            [unified\\IBonDriver3.h] {}
+            [unified\\pryutil.cpp] {}
+            [unified\\pryutil.h] {}
+            [unified\\UsbFx2Driver.cpp] {}
+            [unified\\UsbFx2Driver.h] {}
+          }
+          [nodes] {
+            [libunified] {
+              <ReadOnly> n
+              <AbsolutePath> n
+              <Priority> 0
+              [files] {
+                [unified\\libunified\\libunified.vcproj] {}
+                [unified\\libunified\\libunified.vcxproj] {}
+                [unified\\libunified\\ReadMe.txt] {}
+                [unified\\libunified\\stdafx.cpp] {}
+                [unified\\libunified\\stdafx.h] {}
+                [unified\\libunified\\targetver.h] {}
+              }
+              [nodes] {}
+            }
+          }
+        }
+      }
+      [files] {
+        [BonFx2.sln] {
+          <Default> "OpenFromShell"
+        }
+        [BonFx2_VS2008.sln] {
+          <Default> "OpenFromShell"
+        }
+        [CyCopy.bat] {}
+      }
+    }
+  }
+  [Options] {
+    <C/C++.AdditionalKeywords> ""
+    <COBOL.AdditionalKeywords> ""
+    <HTML.AdditionalKeywords> ""
+    <Java.AdditionalKeywords> ""
+    <Makefile.AdditionalKeywords> ""
+    <Pascal.AdditionalKeywords> ""
+    <Perl.AdditionalKeywords> ""
+    <PL/SQL.AdditionalKeywords> ""
+    <Python.AdditionalKeywords> ""
+    <Ruby.AdditionalKeywords> ""
+    <XML.AdditionalKeywords> ""
+    <テキスト.AdditionalKeywords> ""
+    <常用マクロ.AdditionalKeywords> ""
+    <TagJumpList> "%[^(](%d):%*s"
+    <SourcePath> "%PROJECT_DIR%"
+    <RecognizeCharCode> y
+    <RecognizeCharCodeForceEUC> n
+    <RecognizeCharCodeForceLF> y
+    <RecognizeCharCodeNewFileDefault> "ShiftJIS CRLF"
+    <RegExpTagJumpList> "/^([^\\(]+\\(?)\\(([0-9]+\\)?)\\):(.*)$/$1\\n$2\\n/"
+    <RecognizeCharCodeUTF8WriteBOM> "OffButInherit"
+    <Description> ""
+    <C#.AdditionalKeywords> ""
+    <RecognizeCharCodeIncludeUTF16> y
+    <RecognizeCharCodeUTF16WriteBOM> "AlwaysOff"
+    <ReadableControlCodes> "05,07,08,0B,0C,1A"
+    [ExecuteFormats] {
+      [ビルド] {
+        <Commands>
+          "%SAVEALL%\r\n"
+          "build.bat Build %PROJECT_PREFIX%\r\n"
+          "\r\n"
+        <Macros>
+          "uses Reserved ;\r\n"
+          "ExecuteCommands(\r\n"
+          "  \"%SAVEALL%\\r\\n\"\r\n"
+          "  \"make -f \\\".\\\\%PROJECT_PREFIX%.mak\\\"\\r\\n\"\r\n"
+          "  \"/Dw %PROJECT_SHORTPATH%%PROJECT_SHORTPREFIX%.exe\" );\r\n"
+        <AutoTagJumpWord> ": error;: fatal error"
+        <Kind> "Command"
+      }
+      [再構築] {
+        <Commands>
+          "%SAVEALL%\r\n"
+          "build.bat Rebuild  %PROJECT_PREFIX%\r\n"
+          "\r\n"
+        <Macros>
+          "uses Reserved ;\r\n"
+          "ExecuteCommands(\r\n"
+          "  \"%SAVEALL%\\r\\n\"\r\n"
+          "  \"make -f \\\".\\\\%PROJECT_PREFIX%.mak\\\"\\r\\n\"\r\n"
+          "  \"/Dw %PROJECT_SHORTPATH%%PROJECT_SHORTPREFIX%.exe\" );\r\n"
+        <AutoTagJumpWord> ": error"
+        <Kind> "Command"
+      }
+      [クリーン] {
+        <Commands>
+          "build.bat Clean %PROJECT_PREFIX%\r\n"
+          "\r\n"
+        <Macros>
+          "uses Reserved ;\r\n"
+          "ExecuteCommands(\r\n"
+          "  \"%SAVEALL%\\r\\n\"\r\n"
+          "  \"make -f \\\".\\\\%PROJECT_PREFIX%.mak\\\"\\r\\n\"\r\n"
+          "  \"/Dw %PROJECT_SHORTPATH%%PROJECT_SHORTPREFIX%.exe\" );\r\n"
+        <AutoTagJumpWord> ": error"
+        <Kind> "Command"
+      }
+    }
+    [AdditionalEnvironments] {
+      <VSMSBUILDCMD> "%VS140COMNTOOLS%VsMSBuildCmd.bat"
+      <VSVARS32_2008> "%VS90COMNTOOLS%VsVars32.bat"
+    }
+  }
+  [Diagram] {
+    [Sheets] {
+      [(標準)] {
+        [Objects] {}
+        [Connections] {}
+      }
+    }
+  }
+}

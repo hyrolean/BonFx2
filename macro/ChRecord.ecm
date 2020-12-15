@@ -1,0 +1,11 @@
+unit ChRecord() ;
+
+@global
+
+dim Space as str ;
+dim ServiceID as int ;
+dim PhyCh as int ;
+dim TSID as int ;
+dim Ch as str ;
+dim Name as str ;
+

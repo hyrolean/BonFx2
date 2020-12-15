@@ -1,0 +1,68 @@
+uses Reserved ;
+
+@local
+
+const UpdatePlaces[] = str {
+  R"(T:\Factory\Source\BonFx2\unified\)",
+  R"(T:\Factory\Source\Digibest\FSHybrid\src\)",
+  R"(T:\Factory\Source\Digibest\FSUSB2N\FSUSB2N-src\BonDriver\)",
+  R"(T:\Factory\Source\Digibest\FSUSB2i\src\BonDriver\)",
+  R"(T:\Factory\Source\Digibest\uSUNpTV\src\BonDriver\)",
+  R"(T:\Factory\Source\BonReduction\unified\)"
+} ;
+
+function UpdateInt(FileNamePrefix as str)
+{
+  dim MaxAge=0,MaxAgeIndex=-1 ;
+  OutputMessage("%s を更新しています..." % FileNamePrefix ) ;
+  dim found = false ;
+  for(dim i=0;i<countof(UpdatePlaces);i++) {
+    dim FileName = UpdatePlaces[i] + FileNamePrefix ;
+    dim Age = FileAge(FileName) ;
+    if(Age<MaxAge) {
+      found = true ;
+    }
+    if(Age>MaxAge) {
+      MaxAgeIndex = i ;
+      MaxAge = Age ;
+      if(i>0) found = true ;
+    }
+  }
+  if(!found) {
+    OutputMessage("  %s を更新の必要はありません。" % FileNamePrefix) ;
+    return ;
+  }
+  dim UpdateSource = UpdatePlaces[MaxAgeIndex] + FileNamePrefix ;
+  OutputMessage("  %s が最新の更新ファイルです。" % UpdateSource) ;
+  for(dim i=0;i<countof(UpdatePlaces);i++) {
+    dim FileName = UpdatePlaces[i] + FileNamePrefix ;
+    dim Age = FileAge(FileName) ;
+    if(Age<MaxAge) {
+      dim UpdateSources as str [] ;
+      pushto(UpdateSources,UpdateSource) ;
+      if(!EasyFileOperation(FileName,UpdateSources,FO_COPY,FOF_SILENT|FOF_NOCONFIRMATION)) {
+        OutputMessage("  %s を %s にコピーしました。" % UpdateSource % FileName ) ;
+      }else {
+        OutputMessage("  %s を %s にコピーできませんでした。" % UpdateSource % FileName ) ;
+      }
+    }
+  }
+}
+
+@global
+
+ENTRY: {
+  MacroEntryCaption("Bonファイルの相互更新");
+  return ;
+}
+
+ACTION: {
+  ClearMessage() ;
+  SetMessageHint("Bonファイルの相互更新") ;
+  UpdateInt("pryutil.cpp") ;
+  UpdateInt("pryutil.h") ;
+  HistoryMessage() ;
+  TabCheckFileUpdates();
+  return ;
+}
+
