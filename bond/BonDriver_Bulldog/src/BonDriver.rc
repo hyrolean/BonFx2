@@ -25,7 +25,7 @@ BEGIN
             VALUE "InternalName", "BonDriver_Bulldog.dll"
             VALUE "OriginalFilename", "BonDriver_Bulldog.dll"
             VALUE "ProductVersion", "0,2021,2,3"
-            VALUE "Comments", "MOD by PRY8EAlByw 2013-2015"
+            VALUE "LegalCopyright", "MOD by PRY8EAlByw 2013-2021"
         END
     END
     BLOCK "VarFileInfo"
