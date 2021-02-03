@@ -51,6 +51,15 @@ DWORD ISDBSSETTSIDTIMES		= 2 ;
 DWORD ISDBSSETTSLOCKWAIT    = 10 ;
 DWORD ISDBSSETTSIDWAIT		= 800 ;
 
+// 既定のチャンネル情報
+BOOL DEFSPACEVHF          = FALSE ; // VHFを含めるかどうか
+BOOL DEFSPACEUHF          = TRUE  ; // UHFを含めるかどうか
+BOOL DEFSPACECATV         = FALSE ; // CATVを含めるかどうか
+BOOL DEFSPACEBS           = TRUE  ; // BSを含めるかどうか
+int  DEFSPACEBSSTREAMS    = 8     ; // BSの各ストリーム数(0-8)
+BOOL DEFSPACECS110        = TRUE  ; // CS110を含めるかどうか
+int  DEFSPACECS110STREAMS = 8     ; // CS110の各ストリーム数(0-8)
+
 // エンドポイントインデックス
 #define EPINDEX_IN			0UL
 #define EPINDEX_OUT			1UL
@@ -948,6 +957,13 @@ bool    CBonTuner::LoadIniFile(std::string strIniFileName)
   LOADINT(ASYNCTSEMPTYBORDER) ;
   LOADINT(ASYNCTSEMPTYLIMIT) ;
   LOADINT(EXCLXFER) ;
+  LOADINT(DEFSPACEVHF);
+  LOADINT(DEFSPACEUHF);
+  LOADINT(DEFSPACECATV);
+  LOADINT(DEFSPACEBS);
+  LOADINT(DEFSPACEBSSTREAMS);
+  LOADINT(DEFSPACECS110);
+  LOADINT(DEFSPACECS110STREAMS);
   LOADINT(ISDBTCOMMANDSENDTIMES) ;
   LOADINT(ISDBTCOMMANDSENDWAIT) ;
   LOADINT(ISDBSCOMMANDSENDTIMES) ;
@@ -1065,51 +1081,71 @@ void    CBonTuner::InitChannelToDefault()
 {
 	m_Channels.clear() ;
 
-	wstring space = L"VHF" ;
-	BAND band = BAND_VU ;
-	//m_SpaceIndices.push_back(m_Channels.size()) ;
-	for(int i=1;	i<=12;	i++)
-	{
-		m_Channels.push_back(
-		  CHANNEL(space,band,i,itows(i)+L"ch")) ;
+	wstring space; BAND band;
+
+	if(DEFSPACEVHF) {
+		space = L"VHF" ;
+		band = BAND_VU ;
+		//m_SpaceIndices.push_back(m_Channels.size()) ;
+		for(int i=1;	i<=12;	i++)
+		{
+			m_Channels.push_back(
+			  CHANNEL(space,band,i,itows(i)+L"ch")) ;
+		}
 	}
 
-	space = L"UHF" ;
-	band = BAND_VU ;
-	//m_SpaceIndices.push_back(m_Channels.size()) ;
-	for(int i=13;	i<=62;	i++)
-	{
-		m_Channels.push_back(
-		  CHANNEL(space,band,i,itows(i)+L"ch")) ;
+	if(DEFSPACEUHF) {
+		space = L"UHF" ;
+		band = BAND_VU ;
+		//m_SpaceIndices.push_back(m_Channels.size()) ;
+		for(int i=13;	i<=62;	i++)
+		{
+			m_Channels.push_back(
+			  CHANNEL(space,band,i,itows(i)+L"ch")) ;
+		}
 	}
 
-	space = L"CATV" ;
-	band = BAND_VU ;
-	//m_SpaceIndices.push_back(m_Channels.size()) ;
-	for(int i=13;	i<=63;	i++)
-	{
-		m_Channels.push_back(
-		  CHANNEL(space,band,i+100,L"C"+itows(i)+L"ch")) ;
+	if(DEFSPACECATV) {
+		space = L"CATV" ;
+		band = BAND_VU ;
+		//m_SpaceIndices.push_back(m_Channels.size()) ;
+		for(int i=13;	i<=63;	i++)
+		{
+			m_Channels.push_back(
+			  CHANNEL(space,band,i+100,L"C"+itows(i)+L"ch")) ;
+		}
 	}
 
-	space = L"BS" ;
-	band = BAND_BS ;
-	//m_SpaceIndices.push_back(m_Channels.size()) ;
-	for(int i=1;	i <= 23;	i+=2)
-	{
-		for(int j=0;	j<=7;	j++)
-		  m_Channels.push_back(
-			CHANNEL(space,band,i,L"BS"+itows(i)+L"/TS"+itows(j),j)) ;
+	if(DEFSPACEBS) {
+		space = L"BS" ;
+		band = BAND_BS ;
+		//m_SpaceIndices.push_back(m_Channels.size()) ;
+		for(int i=1;	i <= 23;	i+=2)
+		{
+			if(DEFSPACEBSSTREAMS>0)
+				for(int j=0;	j<DEFSPACEBSSTREAMS;	j++)
+					m_Channels.push_back(
+					  CHANNEL(space,band,i,L"BS"+itows(i)+L"/TS"+itows(j),j)) ;
+			else
+				m_Channels.push_back(
+				  CHANNEL(space,band,i,L"BS"+itows(i))) ;
+		}
 	}
 
-	space = L"CS110" ;
-	band = BAND_ND ;
-	//m_SpaceIndices.push_back(m_Channels.size()) ;
-	for(int i=2;	i <= 24;	i+=2)
-	{
-		for(int j=0;	j<=7;	j++)
-		  m_Channels.push_back(
-			CHANNEL(space,band,i,L"ND"+itows(i)+L"/TS"+itows(j),j)) ;
+	if(DEFSPACECS110) {
+		space = L"CS110" ;
+		band = BAND_ND ;
+		//m_SpaceIndices.push_back(m_Channels.size()) ;
+		for(int i=2;	i <= 24;	i+=2)
+		{
+			if(DEFSPACECS110STREAMS>0)
+				for(int j=0;	j<=DEFSPACECS110STREAMS;	j++)
+					m_Channels.push_back(
+					  CHANNEL(space,band,i,L"ND"+itows(i)+L"/TS"+itows(j),j)) ;
+			else
+				m_Channels.push_back(
+				  CHANNEL(space,band,i,L"ND"+itows(i))) ;
+		}
 	}
 
 }

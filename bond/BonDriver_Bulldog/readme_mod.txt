@@ -1,4 +1,4 @@
-Bulldog チューナー用 BonDriver 改変MODソース @ 2020/5/1
+Bulldog チューナー用 BonDriver 改変MODソース @ 2021/2/3
 
   以下の2ファイルを BonDriver_Bulldog.dll と同じ場所において使用する。
 
@@ -22,6 +22,10 @@ Bulldog チューナー用 BonDriver 改変MODソース @ 2020/5/1
     BonDriver_Bulldog_dev2.dll     ; BonDriver_Bulldog.dll を複製したもの
     BonDriver_Bulldog_dev2.ini     ; BonDriver_Bulldog.ini を複製したもの
     BonDriver_Bulldog_dev2.ch.txt  ; BonDriver_Bulldog.ch.txt を複製したもの
+
+2020/5/1 からの修正内容
+
+    ・既定のチャンネル情報を設定する DefSpace～ 各項目を .ini に追加
 
 2019/12/21 からの修正内容
 
