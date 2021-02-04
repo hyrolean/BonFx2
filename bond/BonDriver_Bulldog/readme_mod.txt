@@ -120,5 +120,5 @@ P.S.
   また、本ソースの製作者は AKIBASTOCK とはまったく無関係の人間です。
   本ソースについて、問い合わせるような行為は控えてください。
 
-  hyrolean-dtv◆PRY8EAlByw 2013-2020
+  hyrolean-dtv◆PRY8EAlByw 2013-2021
 
