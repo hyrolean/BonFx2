@@ -1138,13 +1138,13 @@ void    CBonTuner::InitChannelToDefault()
 		band = BAND_ND ;
 		if(DEFSPACECS110STREAMS>0) {
 			if(DEFSPACECS110STREAMSTRIDE) {
-				for(int j=0;	j<=DEFSPACECS110STREAMS;	j++)
+				for(int j=0;	j<DEFSPACECS110STREAMS;	j++)
 				for(int i=2;	i <= 24;	i+=2)
 					m_Channels.push_back(
 					  CHANNEL(space,band,i,L"ND"+itows(i)+L"/TS"+itows(j),j)) ;
 			}else {
 				for(int i=2;	i <= 24;	i+=2)
-				for(int j=0;	j<=DEFSPACECS110STREAMS;	j++)
+				for(int j=0;	j<DEFSPACECS110STREAMS;	j++)
 					m_Channels.push_back(
 					  CHANNEL(space,band,i,L"ND"+itows(i)+L"/TS"+itows(j),j)) ;
 			}
