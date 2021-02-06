@@ -4,8 +4,8 @@
 
 LANGUAGE LANG_JAPANESE, SUBLANG_DEFAULT
 1 VERSIONINFO
- FILEVERSION 0,2021,2,3
- PRODUCTVERSION 0,2021,2,3
+ FILEVERSION 0,2021,2,7
+ PRODUCTVERSION 0,2021,2,7
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -21,10 +21,10 @@ BEGIN
         BLOCK "041104b0"
         BEGIN
             VALUE "FileDescription", "Bulldog Driver Interface"
-            VALUE "FileVersion", "0,2021,2,3"
+            VALUE "FileVersion", "0,2021,2,7"
             VALUE "InternalName", "BonDriver_Bulldog.dll"
             VALUE "OriginalFilename", "BonDriver_Bulldog.dll"
-            VALUE "ProductVersion", "0,2021,2,3"
+            VALUE "ProductVersion", "0,2021,2,7"
             VALUE "LegalCopyright", "MOD by PRY8EAlByw 2013-2021"
         END
     END
