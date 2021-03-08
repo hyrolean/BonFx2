@@ -50,6 +50,7 @@ DWORD ISDBSCOMMANDSENDWAIT  = 100 ;
 DWORD ISDBSSETTSIDTIMES		= 2 ;
 DWORD ISDBSSETTSLOCKWAIT    = 10 ;
 DWORD ISDBSSETTSIDWAIT		= 800 ;
+DWORD CHANNELWAIT   		= 800 ;
 
 // 既定のチャンネル情報
 BOOL DEFSPACEVHF               = FALSE ; // VHFを含めるかどうか
@@ -61,6 +62,9 @@ BOOL DEFSPACEBSSTREAMSTRIDE    = FALSE ; // BSをストリーム基準に配置するかどうか
 BOOL DEFSPACECS110             = TRUE  ; // CS110を含めるかどうか
 BOOL DEFSPACECS110STREAMSTRIDE = FALSE ; // CS110をストリーム基準に配置するかどうか
 int  DEFSPACECS110STREAMS      = 8     ; // CS110の各ストリーム数(0-8)
+
+// 高速スキャン対応
+BOOL FASTSCAN	= FALSE ;
 
 // エンドポイントインデックス
 #define EPINDEX_IN			0UL
@@ -317,7 +321,8 @@ WORD  CBonTuner::SelectTSID(BYTE stream/*0-7*/)
     if(!ln) return 0 ;
     for(int i=0;i+1<ln;i+=2) {
       WORD tsid = data[i+0]<<8 | data[i+1] ; // big endian
-      if(tsid!=0&&tsid!=0xFFFF&&(tsid&7)==stream) return tsid ;
+      if(tsid!=0&&tsid!=0xFFFF&&((tsid&7)==stream||stream==255))
+        return tsid ;
     }
     return 0 ;
 }
@@ -576,13 +581,23 @@ const BOOL CBonTuner::SetRealChannel(const DWORD dwCh)
 	  return FALSE ;
 	}
 
+	if(tuned) {
+	  bool locking=false ;
+	  for(DWORD e=0,s=Elapsed();CHANNELWAIT>e;e=Elapsed(s)) {
+		Sleep(40);
+	    locking = (fModeTerra?IsLockISDBT():IsLockISDBS())==stLock ;
+		if(locking) break ;
+	  }
+      if(!locking) tuned=false ;
+	}
+
 	// Fx側バッファ初期化
 	ResetFxFifo() ;
 
 	//ストリーム再開
 	is_channel_valid = tuned ? TRUE : FALSE ;
 
-	return TRUE ;
+	return FASTSCAN&&!tuned ? FALSE : TRUE ;
 }
 
 
@@ -968,6 +983,7 @@ bool    CBonTuner::LoadIniFile(std::string strIniFileName)
   LOADINT(DEFSPACECS110);
   LOADINT(DEFSPACECS110STREAMS);
   LOADINT(DEFSPACECS110STREAMSTRIDE);
+  LOADINT(FASTSCAN);
   LOADINT(ISDBTCOMMANDSENDTIMES) ;
   LOADINT(ISDBTCOMMANDSENDWAIT) ;
   LOADINT(ISDBSCOMMANDSENDTIMES) ;
@@ -975,6 +991,7 @@ bool    CBonTuner::LoadIniFile(std::string strIniFileName)
   LOADINT(ISDBSSETTSIDTIMES) ;
   LOADINT(ISDBSSETTSLOCKWAIT);
   LOADINT(ISDBSSETTSIDWAIT) ;
+  LOADINT(CHANNELWAIT) ;
   wstring InvisibleSpaces ;
   LOADWSTR(InvisibleSpaces) ;
   split(m_InvisibleSpaces,InvisibleSpaces,L',') ;
