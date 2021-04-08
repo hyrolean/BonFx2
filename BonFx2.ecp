@@ -158,6 +158,7 @@
         }
       }
       [files] {
+        [.gitignore] {}
         [BonFx2.sln] {
           <Default> "OpenFromShell"
         }
