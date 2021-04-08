@@ -13,6 +13,6 @@ if exist "%VSVARS32_2008%" (
   )else exit 1
 )else if exist "%VSMSBUILDCMD%" (
   call "%VSMSBUILDCMD%"
-  MSBuild /t:%1 /p:Configuration=Release /p:platform=Win32 "%2.sln" || exit /k 1
-  MSBuild /t:%1 /p:Configuration=Release /p:platform=x64 "%2.sln"
+  MSBuild /m /t:%1 /p:Configuration=Release /p:platform=Win32 "%2.sln" || exit /k 1
+  MSBuild /m /t:%1 /p:Configuration=Release /p:platform=x64 "%2.sln"
 )else exit 1

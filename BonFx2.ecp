@@ -165,6 +165,7 @@
         [BonFx2_VS2008.sln] {
           <Default> "OpenFromShell"
         }
+        [build.bat] {}
         [CyCopy.bat] {}
       }
     }
@@ -183,13 +184,15 @@
     <XML.AdditionalKeywords> ""
     <テキスト.AdditionalKeywords> ""
     <常用マクロ.AdditionalKeywords> ""
-    <TagJumpList> "%[^(](%d):%*s"
+    <TagJumpList> ""
     <SourcePath> "%PROJECT_DIR%"
     <RecognizeCharCode> y
     <RecognizeCharCodeForceEUC> n
     <RecognizeCharCodeForceLF> y
     <RecognizeCharCodeNewFileDefault> "ShiftJIS CRLF"
-    <RegExpTagJumpList> "/^([^\\(]+\\(?)\\(([0-9]+\\)?)\\):(.*)$/$1\\n$2\\n/"
+    <RegExpTagJumpList>
+      "/^([^>\\(]+\\(?)\\(([0-9]+\\)?)\\):.*\\[([^\\]]+)\\]$/$1\\n$2\\n$3\\n/\r\n"
+      "/^[ \\t]*[0-9]+>([^\\(]+\\(?)\\(([0-9]+\\)?)\\):.*\\[([^\\]]+)\\]$/$1\\n$2\\n$3\\n/\r\n"
     <RecognizeCharCodeUTF8WriteBOM> "OffButInherit"
     <Description> ""
     <C#.AdditionalKeywords> ""
@@ -209,6 +212,7 @@
           "  \"make -f \\\".\\\\%PROJECT_PREFIX%.mak\\\"\\r\\n\"\r\n"
           "  \"/Dw %PROJECT_SHORTPATH%%PROJECT_SHORTPREFIX%.exe\" );\r\n"
         <AutoTagJumpWord> ": error;: fatal error"
+        <ViaBatch> n
         <Kind> "Command"
       }
       [再構築] {
@@ -223,6 +227,7 @@
           "  \"make -f \\\".\\\\%PROJECT_PREFIX%.mak\\\"\\r\\n\"\r\n"
           "  \"/Dw %PROJECT_SHORTPATH%%PROJECT_SHORTPREFIX%.exe\" );\r\n"
         <AutoTagJumpWord> ": error"
+        <ViaBatch> n
         <Kind> "Command"
       }
       [クリーン] {
@@ -236,6 +241,7 @@
           "  \"make -f \\\".\\\\%PROJECT_PREFIX%.mak\\\"\\r\\n\"\r\n"
           "  \"/Dw %PROJECT_SHORTPATH%%PROJECT_SHORTPREFIX%.exe\" );\r\n"
         <AutoTagJumpWord> ": error"
+        <ViaBatch> n
         <Kind> "Command"
       }
     }
