@@ -184,7 +184,8 @@
     <XML.AdditionalKeywords> ""
     <テキスト.AdditionalKeywords> ""
     <常用マクロ.AdditionalKeywords> ""
-    <TagJumpList> ""
+    <TagJumpList>
+      "%[^(](%d):%*s\r\n"
     <SourcePath> "%PROJECT_DIR%"
     <RecognizeCharCode> y
     <RecognizeCharCodeForceEUC> n
