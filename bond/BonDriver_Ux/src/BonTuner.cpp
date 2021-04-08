@@ -4,6 +4,7 @@
 
 #include "stdafx.h"
 #include <SetupApi.h>
+#include <MMSystem.h>
 #include <Malloc.h>
 #include <InitGuid.h>
 #include <Math.h>
@@ -14,6 +15,7 @@
 
 
 #pragma comment(lib, "SetupApi.lib")
+#pragma comment(lib, "WinMM.lib")
 
 
 using namespace std ;
@@ -31,6 +33,11 @@ BOOL  TSWRITEBACK         =   TRUE     ;       // TSデータの書き戻しによるバッフ
 BOOL  TSWRITEBACKDUMMY    =   FALSE    ;       // TSデータの書き戻し残量がない場合にダミー領域を有効にするかどうか
 BOOL  TSALLOCWAITING      =   FALSE    ;       // TSデータのアロケーションの完了を待つかどうか
 int   TSALLOCPRIORITY     =   THREAD_PRIORITY_HIGHEST ; // TSアロケーションスレッドの優先度
+BOOL  BCASENABLED         =   TRUE     ;       // BCASデータ受信スレッドの有効化
+DWORD BCASDATASIZE        =   1536UL   ;       // BCASデータのサイズ
+DWORD BCASQUEUENUM        =   3UL      ;       // BCASデータの環状ストック数
+DWORD BCASTHREADWAIT      =   5000UL   ;       // BCASスレッドキュー毎に待つ最大時間
+int   BCASTHREADPRIORITY  =   THREAD_PRIORITY_HIGHEST ; // BCASスレッドの優先度
 
 // FIFOバッファ設定
 DWORD ASYNCTSQUEUENUM    =   66UL   ;        // 非同期TSデータの環状ストック数(初期値)
@@ -67,6 +74,9 @@ BOOL AUTOTUNEBACKTONHK = FALSE ;
 #define CMD_IR_CODE         0x5DU   //val_l, val_h (0x0000:RBUF capture 0xffff:BWUF output)
 #define CMD_IR_WBUF         0x5EU   //ofs(0 or 64 or 128 or 192), len(max 64), data, ....
 #define CMD_IR_RBUF         0x5FU   //ofs(0 or 64 or 128 or 192) (return 64byte)
+#define CMD_TSBCAS_INIT     0x70U   // TS - BCAS シンクロスタート
+#define CMD_TSBCAS_START    0x71U   // TS - BCAS シンクロスタート
+#define CMD_TSBCAS_END      0x72U   // TS - BCAS 終了
 
 #define PIO_START           0x20
 #define PIO_IR_OUT          0x10
@@ -137,6 +147,11 @@ BOOL REDUCESPACECHANGE   = TRUE ;
 // FX2ファームウェア
 static const BYTE abyFirmWare[] =
 #include "Fw.inc"
+
+// FX2ファームウェア(sea)
+static const BYTE abyFirmWare_sea[] =
+#include "Fw_sea.inc"
+
 
 //////////////////////////////////////////////////////////////////////
 // チャンネル定義テーブル
@@ -214,8 +229,11 @@ CBonTuner::CBonTuner()
     , m_dwCurSpace(0)
     , m_cLastSpace(0xFF)
     , m_dwCurChannel(50)
+    , m_pEcm(NULL)
     , m_bU3BSFixDone(FALSE)
 {
+    m_pEcm = new CEcmDat() ;
+    m_pEcm->SetDiag(FALSE);
     m_pThis = this;
     m_bytesProceeded = 0 ;
     m_tickProceeding = GetTickCount() ;
@@ -226,6 +244,12 @@ CBonTuner::~CBonTuner()
 {
     // 開かれてる場合は閉じる
     CloseTuner();
+
+    if (m_pEcm) {
+        m_pEcm->exit();
+        delete m_pEcm;
+        m_pEcm = NULL ;
+    }
 
     m_pThis = NULL;
 }
@@ -249,7 +273,7 @@ const BOOL CBonTuner::OpenTuner()
 
     // FX2の初期化シーケンス
     try{
-		// 非同期FIFOバッファオブジェクト作成
+        // 非同期FIFOバッファオブジェクト作成
         m_AsyncTSFifo = new CAsyncFifo(
           ASYNCTSQUEUENUM,ASYNCTSQUEUEMAX,ASYNCTSEMPTYBORDER,
           TSDATASIZE,TSTHREADWAIT,TSALLOCPRIORITY ) ;
@@ -260,7 +284,12 @@ const BOOL CBonTuner::OpenTuner()
         if(!(m_hOnStreamEvent = ::CreateEvent(NULL, FALSE, FALSE, NULL)))throw 0UL;
 
         // ドライバオープン
-        if(!m_pUsbFx2Driver->OpenDriver( m_yFx2Id, abyFirmWare, sizeof(abyFirmWare),"FX2_FIFO"))throw 0UL;
+        if(BCASENABLED) {
+          if(!m_pUsbFx2Driver->OpenDriver( m_yFx2Id, abyFirmWare_sea, sizeof(abyFirmWare_sea), "FX2_KAI4"))throw 0UL;
+        }else {
+          if(!m_pUsbFx2Driver->OpenDriver( m_yFx2Id, abyFirmWare, sizeof(abyFirmWare),"FX2_FIFO"))throw 0UL;
+        }
+
 
         // エンドポイント追加
         if(!m_pUsbFx2Driver->AddEndPoint(0x81U))throw 1UL;  // EPINDEX_IN
@@ -274,10 +303,19 @@ const BOOL CBonTuner::OpenTuner()
 
         // スレッド起動
         if(!m_pUsbFx2Driver->CreateFifoThread(0x86U, &m_dwFifoThreadIndex, TSDATASIZE, TSQUEUENUM, TSTHREADWAIT, TSTHREADPRIORITY, TSWRITEBACK))throw 4UL;
-        // 開始コマンド送信
-        elock.lock();
-        if(!m_pUsbFx2Driver->TransmitFormatedData(EPINDEX_OUT, 3UL, CMD_EP6IN_START, CMD_PORT_WRITE, PIO_START | PIO_IR_OUT | PIO_TS_BACK))throw 3UL;
-        elock.unlock();
+        if(BCASENABLED) {
+          if(!m_pUsbFx2Driver->CreateFifoThread(0x84U, &m_dwFifoBcasThreadIndex, BCASDATASIZE, BCASQUEUENUM, BCASTHREADWAIT, BCASTHREADPRIORITY))throw 4UL;
+          // 開始コマンド送信
+          elock.lock();
+          if(!m_pUsbFx2Driver->TransmitFormatedData(EPINDEX_OUT, 4UL, CMD_TSBCAS_INIT, CMD_TSBCAS_START, CMD_PORT_WRITE, PIO_START | PIO_IR_OUT | PIO_TS_BACK))throw 3UL;
+          elock.unlock();
+        }else {
+          m_dwFifoBcasThreadIndex = 0xFFFFFFFF ;
+          // 開始コマンド送信
+          elock.lock();
+          if(!m_pUsbFx2Driver->TransmitFormatedData(EPINDEX_OUT, 3UL, CMD_EP6IN_START, CMD_PORT_WRITE, PIO_START | PIO_IR_OUT | PIO_TS_BACK))throw 3UL;
+          elock.unlock();
+        }
 
 
         // リモコンベースコード決定
@@ -337,6 +375,13 @@ void CBonTuner::CloseTuner()
           Sleep(COMMANDSENDWAIT) ;
           IRCodeTX(REMOCON_CHIDEJI) ;
           IRCodeTX(REMOCON_NUMBER_1) ;
+        }
+
+        if(BCASENABLED) {
+          exclusive_lock elock(&m_coXfer);
+          m_pUsbFx2Driver->TransmitFormatedData(EPINDEX_OUT, 3UL,
+            CMD_PORT_WRITE, PIO_IR_OUT|PIO_TS_BACK,
+            CMD_TSBCAS_END ) ;
         }
 
         // 電源を切る
@@ -413,7 +458,16 @@ void CBonTuner::ResetFxFifo()
 
 const BOOL CBonTuner::SetChannel(const BYTE bCh)
 {
-    //auto_lock lock(&eoChanneling) ;
+    class mm_interval_lock {
+        DWORD period_;
+    public:
+        mm_interval_lock(DWORD period) : period_(period) {
+            timeBeginPeriod(period_);
+        }
+        ~mm_interval_lock() {
+            timeEndPeriod(period_);
+        }
+    };
 
     //とりあえずストリームをとめる
     is_channel_valid = FALSE;
@@ -424,6 +478,12 @@ const BOOL CBonTuner::SetChannel(const BYTE bCh)
 
     // TSデータパージ
     PurgeTsStream();
+
+    //DT300へのリモコンコマンド送信のタイミングはかなりシビアな為、
+    //チャンネル切替の前にシステムの割込み効率を極限まで上げておく
+    // ※ Windows10 2004 以降の環境だと 9 辺りが最小値でそれ以下の
+    //    値を指定すると逆に割込み効率が落ちる謎の副作用が発生する
+    mm_interval_lock interlock(10);
 
     PastSleep(COMMANDSENDINTERVAL,m_tkLastCommandSend);
     for(size_t j = 0; j < COMMANDSENDTIMES; j++){
@@ -454,10 +514,10 @@ const BOOL CBonTuner::SetChannel(const BYTE bCh)
     }
     */
 
-	//Fx側FIFOバッファ初期化
-	ResetFxFifo();
+    //Fx側FIFOバッファ初期化
+    ResetFxFifo();
 
-	Sleep(CHANNELCHANGEWAIT);
+    Sleep(CHANNELCHANGEWAIT);
 
     //ストリーム送る
     is_channel_valid = TRUE;
@@ -475,14 +535,14 @@ const float CBonTuner::GetSignalLevel(void)
     DWORD tick = GetTickCount() ;
     float duration ;
     duration = (float) Elapsed(m_tickProceeding,tick) ;
-	float result = 0.f;
-	if (duration>1.f) {
-		duration /= 1000.f;
-		result = (float)m_bytesProceeded*8.f / duration / 1024.f / 1024.f;
-		m_tickProceeding = tick;
-		m_bytesProceeded = 0;
-		if (result > 100.f) result = 0.f;
-	}
+    float result = 0.f;
+    if (duration>1.f) {
+        duration /= 1000.f;
+        result = (float)m_bytesProceeded*8.f / duration / 1024.f / 1024.f;
+        m_tickProceeding = tick;
+        m_bytesProceeded = 0;
+        if (result > 100.f) result = 0.f;
+    }
     return result ;
     #endif
 }
@@ -492,8 +552,8 @@ const DWORD CBonTuner::WaitTsStream(const DWORD dwTimeOut)
     // 終了チェック
     if(!m_pUsbFx2Driver)return WAIT_ABANDONED;
 
-	// バッファ済み
-	if(!m_AsyncTSFifo->Empty()) return WAIT_OBJECT_0;
+    // バッファ済み
+    if(!m_AsyncTSFifo->Empty()) return WAIT_OBJECT_0;
 
     // イベントがシグナル状態になるのを待つ
     const DWORD dwRet = ::WaitForSingleObject(m_hOnStreamEvent, dwTimeOut);
@@ -539,8 +599,8 @@ const BOOL CBonTuner::GetTsStream(BYTE *pDst, DWORD *pdwSize, DWORD *pdwRemain)
 
 const BOOL CBonTuner::GetTsStream(BYTE **ppDst, DWORD *pdwSize, DWORD *pdwRemain)
 {
-	if(!m_pUsbFx2Driver)
-		return FALSE;
+    if(!m_pUsbFx2Driver)
+        return FALSE;
 
     m_AsyncTSFifo->Pop(ppDst,pdwSize,pdwRemain) ;
     return TRUE ;
@@ -548,7 +608,7 @@ const BOOL CBonTuner::GetTsStream(BYTE **ppDst, DWORD *pdwSize, DWORD *pdwRemain
 
 void CBonTuner::PurgeTsStream()
 {
-	m_AsyncTSFifo->Purge() ;
+    m_AsyncTSFifo->Purge() ;
 }
 
 void CBonTuner::Release()
@@ -572,13 +632,21 @@ const bool CBonTuner::OnRecvFifoData(const DWORD dwThreadIndex, const BYTE *pDat
         }
       }
     }
+    else if (dwThreadIndex == m_dwFifoBcasThreadIndex) {
+        if(m_pEcm) {
+          m_pEcm->set(pData, dwLen);
+          m_bytesProceeded+=dwLen ;
+        }
+    }
+
     return true;
 }
 
 void CBonTuner::OnXferLock(const DWORD dwThreadIndex, bool locking, CUsbFx2Driver *pDriver)
 {
   if(EXCLXFER) {
-    if ( dwThreadIndex == m_dwFifoThreadIndex ) {
+    if ( dwThreadIndex == m_dwFifoThreadIndex ||
+         dwThreadIndex == m_dwFifoBcasThreadIndex ) {
       if(locking)     m_coXfer.lock() ;
       else            m_coXfer.unlock() ;
     }
@@ -765,20 +833,20 @@ bool CBonTuner::LoadIniFile(string strIniFileName)
   const char *Section = "BonTuner";
   DBGOUT("Loading Ini \"%s\"...\n",strIniFileName.c_str()) ;
   #define LOADSTR2(val,key) do { \
-	  GetPrivateProfileStringA(Section,key,val.c_str(), \
-		buffer,BUFFER_SIZE,strIniFileName.c_str()) ; \
-	  val = buffer ; \
-	}while(0)
+      GetPrivateProfileStringA(Section,key,val.c_str(), \
+        buffer,BUFFER_SIZE,strIniFileName.c_str()) ; \
+      val = buffer ; \
+    }while(0)
   #define LOADSTR(val) LOADSTR2(val,#val)
   #define LOADINT(key) do { \
-	  string temp("") ; \
-	  LOADSTR2(temp,#key); \
-	  key = acalci(temp.c_str(),key); \
-	}while(0)
+      string temp("") ; \
+      LOADSTR2(temp,#key); \
+      key = acalci(temp.c_str(),key); \
+    }while(0)
   #define LOADWSTR(val) do { \
-	  string temp = wcs2mbcs(val) ; \
-	  LOADSTR2(temp,#val) ; val = mbcs2wcs(temp) ; \
-	}while(0)
+      string temp = wcs2mbcs(val) ; \
+      LOADSTR2(temp,#val) ; val = mbcs2wcs(temp) ; \
+    }while(0)
   LOADINT(TSDATASIZE) ;
   LOADINT(TSQUEUENUM) ;
   LOADINT(TSTHREADWAIT) ;
@@ -787,6 +855,11 @@ bool CBonTuner::LoadIniFile(string strIniFileName)
   LOADINT(TSWRITEBACKDUMMY) ;
   LOADINT(TSALLOCWAITING) ;
   LOADINT(TSALLOCPRIORITY) ;
+  LOADINT(BCASENABLED) ;
+  LOADINT(BCASDATASIZE) ;
+  LOADINT(BCASQUEUENUM) ;
+  LOADINT(BCASTHREADWAIT) ;
+  LOADINT(BCASTHREADPRIORITY) ;
   LOADINT(ASYNCTSQUEUENUM) ;
   LOADINT(ASYNCTSQUEUEMAX) ;
   LOADINT(ASYNCTSEMPTYBORDER) ;
@@ -818,6 +891,7 @@ bool CBonTuner::LoadIniFile(string strIniFileName)
   #undef LOADSTR2
   #undef LOADSTR
   #undef LOADWSTR
+  if(m_pEcm) m_pEcm->LoadIniFile(strIniFileName) ;
   return true ;
 }
 
