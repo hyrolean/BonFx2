@@ -200,6 +200,17 @@ extern "C" __declspec(dllexport) IBonDriver * CreateBonDriver()
 
 #pragma warning( default : 4273 )
 
+    class mm_interval_lock {
+        DWORD period_;
+    public:
+        mm_interval_lock(DWORD period) : period_(period) {
+            timeBeginPeriod(period_);
+        }
+        ~mm_interval_lock() {
+            timeEndPeriod(period_);
+        }
+    };
+    #define MMINTERVAL_PERIOD 10
 
 //////////////////////////////////////////////////////////////////////
 // 構築/消滅
@@ -251,6 +262,9 @@ const BOOL CBonTuner::OpenTuner()
 
     // FX2の初期化シーケンス
     try{
+
+        mm_interval_lock interlock(MMINTERVAL_PERIOD);
+
 		// 非同期FIFOバッファオブジェクト作成
         m_AsyncTSFifo = new CAsyncFifo(
           ASYNCTSQUEUENUM,ASYNCTSQUEUEMAX,ASYNCTSEMPTYBORDER,
@@ -325,6 +339,8 @@ void CBonTuner::CloseTuner()
 
     // ドライバを閉じる
     if(m_pUsbFx2Driver){
+
+        mm_interval_lock interlock(MMINTERVAL_PERIOD);
 
         // 次回起動時BS復元処理用にBSのチャンネルを戻しておく設定
         // (起動直後はBSチャンネルを認識しないのでこのタイミングで設定しておく)
@@ -415,17 +431,6 @@ void CBonTuner::ResetFxFifo()
 
 const BOOL CBonTuner::SetChannel(const BYTE bCh)
 {
-    class mm_interval_lock {
-        DWORD period_;
-    public:
-        mm_interval_lock(DWORD period) : period_(period) {
-            timeBeginPeriod(period_);
-        }
-        ~mm_interval_lock() {
-            timeEndPeriod(period_);
-        }
-    };
-
     //とりあえずストリームをとめる
     is_channel_valid = FALSE;
 
@@ -438,9 +443,7 @@ const BOOL CBonTuner::SetChannel(const BYTE bCh)
 
     //DT300へのリモコンコマンド送信のタイミングはかなりシビアな為、
     //チャンネル切替の前にシステムの割込み効率を極限まで上げておく
-    // ※ Windows10 2004 以降の環境だと 9 辺りが最小値でそれ以下の
-    //    値を指定すると逆に割込み効率が落ちる謎の副作用が発生する
-    mm_interval_lock interlock(10);
+    mm_interval_lock interlock(MMINTERVAL_PERIOD);
 
     PastSleep(COMMANDSENDINTERVAL,m_tkLastCommandSend);
     for(size_t j = 0; j < COMMANDSENDTIMES; j++){

@@ -31,6 +31,10 @@ std::wstring itows(int val,int radix=10);
 std::string upper_case(std::string str) ;
 std::string lower_case(std::string str) ;
 
+std::string uuid_string();
+
+std::string str_printf(const char *format, ...);
+
 std::string file_drive_of(std::string filename);
 std::string file_path_of(std::string filename);
 std::string file_name_of(std::string filename);
@@ -104,10 +108,13 @@ template<class Container,class String> void inline split(
 class event_object
 {
 private:
+#ifdef _DEBUG
+  int id;
+#endif
   HANDLE event ;
   std::wstring name ;
 public:
-  event_object(BOOL _InitialState=TRUE/*default:signalized*/,std::wstring _name=L"") ;
+  event_object(BOOL initialState_=TRUE/*default:signalized*/,std::wstring name_=L"",BOOL security_=FALSE) ;
   event_object(const event_object &clone_source) ; // 現スレッドでイベントを複製
   ~event_object() ;
   std::wstring event_name() const { return name ; }
@@ -514,13 +521,30 @@ public:
     size_-- ;
     return true ;
   }
+  bool pop_back() {
+    if(empty()) return false ;
+    size_-- ;
+    return true ;
+  }
+  void clear() { cue_ = 0 ; size_ = 0 ; }
   reference_type front() {
   #ifdef _DEBUG
     if(empty()) throw std::range_error("fixed_queue: front() range error.") ;
   #endif
     return buff_[cue_] ;
   }
-  void clear() { cue_ = 0 ; size_ = 0 ; }
+  reference_type back() {
+  #ifdef _DEBUG
+    if(empty()) throw std::range_error("fixed_queue: back() range error.") ;
+  #endif
+    return buff_[cue_+size_-1-(cue_+size_-1<grew_?0:grew_)] ;
+  }
+  reference_type operator[](size_type index) {
+  #ifdef _DEBUG
+    if(index>=size()) throw std::range_error("fixed_queue: operator[] range error.") ;
+  #endif
+    return buff_[cue_+index-(cue_+index<grew_?0:grew_)] ;
+  }
 };
 
   // CAsyncFifo
@@ -585,6 +609,32 @@ public:
   void SetModerateAllocating(bool Moderate) { ModerateAllocating=Moderate ; }
   void SetEmptyLimit(size_t emptyLimit) { EmptyLimit = min(emptyLimit,EmptyBorder) ; }
   bool WaitForAllocation() ;
+};
+
+
+  // CSharedMemory (プロセス間メモリ共有)
+
+class CSharedMemory
+{
+private:
+	std::wstring BaseName;
+	HANDLE HMutex;
+	HANDLE HMapping;
+	LPVOID PMapView;
+	DWORD SzMapView;
+protected:
+    LPVOID Memory() const { return PMapView; }
+	bool Lock(DWORD timeout = INFINITE) const ;
+    bool Unlock() const ;
+protected:
+	CSharedMemory(std::wstring name, DWORD size);
+	virtual ~CSharedMemory();
+public:
+	std::wstring Name() const { return BaseName; }
+	virtual bool IsValid() const ;
+	virtual DWORD Read(LPVOID *dst, DWORD sz, DWORD pos, DWORD timeout=INFINITE) const ;
+	virtual DWORD Write(const LPVOID *src, DWORD sz, DWORD pos, DWORD timeout=INFINITE);
+	DWORD Size() const { return SzMapView; }
 };
 
 //---------------------------------------------------------------------------
