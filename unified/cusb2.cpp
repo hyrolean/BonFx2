@@ -10,6 +10,7 @@
 // Modified by 拡張ツール中の人
 #pragma comment(lib, "CyAPI.lib")
 
+#define USBEP_FINISHXFER_AFTER_ABORTED 1
 
 cusb2::cusb2(HANDLE h)  //コンソールモード時はhはNULLを指定
 {
@@ -194,7 +195,13 @@ unsigned int __stdcall cusb2::thread_proc(LPVOID pv)
   CCyUSBEndPoint *ep;
 
 
-  HANDLE heap = HeapCreate( 0 , tcb->xfer * tcb->ques , 0 ) ;
+  const SIZE_T szIniHeap =
+    sizeof(HANDLE) * tcb->ques * 2    // event
+    + sizeof(OVERLAPPED) * tcb->ques  // ovlp
+    + sizeof(PUCHAR) * tcb->ques      // data
+    + sizeof(PUCHAR) * tcb->ques ;    // context
+
+  HANDLE heap = HeapCreate( 0 , szIniHeap , szIniHeap + tcb->xfer * tcb->ques ) ;
   if (!heap)
     return 1 ;
 
@@ -211,10 +218,10 @@ unsigned int __stdcall cusb2::thread_proc(LPVOID pv)
   tcb->fTerminated = false ;
   tcb->fDone = false ;
 
-  HANDLE *event = new HANDLE[tcb->ques * 2];
-  OVERLAPPED *ovlp = new OVERLAPPED[tcb->ques];
-  PUCHAR *data = new PUCHAR[tcb->ques];
-  PUCHAR *context = new PUCHAR[tcb->ques];
+  HANDLE *event = (HANDLE*) HeapAlloc(heap, HEAP_ZERO_MEMORY, sizeof(HANDLE) * tcb->ques * 2); //new HANDLE[tcb->ques * 2];
+  OVERLAPPED *ovlp = (OVERLAPPED*) HeapAlloc(heap, HEAP_ZERO_MEMORY, sizeof(OVERLAPPED) * tcb->ques); //new OVERLAPPED[tcb->ques];
+  PUCHAR *data = (PUCHAR*) HeapAlloc(heap, HEAP_ZERO_MEMORY, sizeof(PUCHAR) * tcb->ques); //new PUCHAR[tcb->ques];
+  PUCHAR *context = (PUCHAR*) HeapAlloc(heap, HEAP_ZERO_MEMORY, sizeof(PUCHAR) * tcb->ques); //new PUCHAR[tcb->ques];
   ep->SetXferSize(tcb->xfer);
   BOOL ret = SetThreadPriority(tcb->th, tcb->prior);
 
@@ -376,10 +383,12 @@ unsigned int __stdcall cusb2::thread_proc(LPVOID pv)
         // Restart queueing all.
         for (u32 j = 0;j < tcb->ques ;j++) {
           u32 t = (i + j) % tcb->ques ;
-          /*
-          if(data[t]&&context[t])
-            ep->FinishDataXfer(data[t], tcb->xfer, &(ovlp[t]), context[t]);
-          */
+          if(data[t]&&context[t]) {
+            tcb->xfer_lock(true) ;
+            LONG n=tcb->xfer;
+            ep->FinishDataXfer(data[t], n, &(ovlp[t]), context[t]);
+            tcb->xfer_lock(false) ;
+          }
           if (tcb->wb_finish_func&&data[t])
             tcb->wb_finish_func(data[t], 0, tcb->idTh);
           ResetEvent(ovlp[t].hEvent) ;
@@ -387,7 +396,7 @@ unsigned int __stdcall cusb2::thread_proc(LPVOID pv)
             data[t] = (PUCHAR)tcb->wb_begin_func(tcb->xfer, tcb->idTh);
           if(data[t]) {
             tcb->xfer_lock(true) ;
-            context[t] = tcb->ep->BeginDataXfer(data[t], tcb->xfer, &(ovlp[t]));
+            context[t] = ep->BeginDataXfer(data[t], tcb->xfer, &(ovlp[t]));
             tcb->xfer_lock(false) ;
           }else
             context[t] = NULL ;
@@ -452,22 +461,29 @@ unsigned int __stdcall cusb2::thread_proc(LPVOID pv)
   tcb->fTerminated = true ;
 
   ep->Abort() ;
+  for (u32 j = 0; j < tcb->ques; j++) {
+    u32 t = (i + j) % tcb->ques ;
+    if(data[t]&&context[t]) {
+      tcb->xfer_lock(true) ;
+      LONG n=tcb->xfer;
+      ep->FinishDataXfer(data[t], n, &(ovlp[t]), context[t]);
+      tcb->xfer_lock(false) ;
+    }
+    if (tcb->wb_begin_func && tcb->wb_finish_func)
+      tcb->wb_finish_func(data[t], 0, tcb->idTh) ;
+    CloseHandle(event[t]);
+    //HeapFree(heap,0,data[i]); //delete [] data[i];
+  }
 
   CloseHandle(tcb->evResetCompleted) ;
   tcb->evResetCompleted = NULL ;
   CloseHandle(tcb->evAbortOrdered) ;
   tcb->evAbortOrdered = NULL ;
 
-  for (i = 0; i < tcb->ques; i++) {
-    if (tcb->wb_begin_func && tcb->wb_finish_func)
-      tcb->wb_finish_func(data[i], 0, tcb->idTh) ;
-    CloseHandle(event[i]);
-    //HeapFree(heap,0,data[i]); //delete [] data[i];
-  }
-  delete [] context;
-  delete [] data;
-  delete [] ovlp;
-  delete [] event;
+  //delete [] context;
+  //delete [] data;
+  //delete [] ovlp;
+  //delete [] event;
 
   HeapDestroy(heap) ;
 
