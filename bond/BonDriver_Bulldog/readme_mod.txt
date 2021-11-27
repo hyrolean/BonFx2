@@ -1,4 +1,4 @@
-Bulldog チューナー用 BonDriver 改変MODソース @ 2021/3/9
+Bulldog チューナー用 BonDriver 改変MODソース @ 2021/11/27
 
   以下の2ファイルを BonDriver_Bulldog.dll と同じ場所において使用する。
 
@@ -22,6 +22,10 @@ Bulldog チューナー用 BonDriver 改変MODソース @ 2021/3/9
     BonDriver_Bulldog_dev2.dll     ; BonDriver_Bulldog.dll を複製したもの
     BonDriver_Bulldog_dev2.ini     ; BonDriver_Bulldog.ini を複製したもの
     BonDriver_Bulldog_dev2.ch.txt  ; BonDriver_Bulldog.ch.txt を複製したもの
+
+2021/3/9 からの修正内容
+
+    ・チャンネル切り替え時にメモリーリークを起こす現象を修正
 
 2021/2/7 からの修正内容
 

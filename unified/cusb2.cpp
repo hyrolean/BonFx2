@@ -10,8 +10,6 @@
 // Modified by 拡張ツール中の人
 #pragma comment(lib, "CyAPI.lib")
 
-#define USBEP_FINISHXFER_AFTER_ABORTED 1
-
 cusb2::cusb2(HANDLE h)  //コンソールモード時はhはNULLを指定
 {
     loading = false;
@@ -194,17 +192,26 @@ unsigned int __stdcall cusb2::thread_proc(LPVOID pv)
   LONG len;
   CCyUSBEndPoint *ep;
 
+  #define INITIAL_HEAP(f) \
+    f( HANDLE,        event,      tcb->ques*2 ) \
+    f( OVERLAPPED,    ovlp,       tcb->ques   ) \
+    f( PUCHAR,        data,       tcb->ques   ) \
+    f( PUCHAR,        context,    tcb->ques   )
 
-  const SIZE_T szIniHeap =
-    sizeof(HANDLE) * tcb->ques * 2    // event
-    + sizeof(OVERLAPPED) * tcb->ques  // ovlp
-    + sizeof(PUCHAR) * tcb->ques      // data
-    + sizeof(PUCHAR) * tcb->ques ;    // context
+  #define HEAP_SZ_FUNC(t,v,n) +(sizeof(t)*(n))
+  const SIZE_T szIniHeap = INITIAL_HEAP(HEAP_SZ_FUNC);
+  const SIZE_T szDataHeap = tcb->xfer * tcb->ques;
 
-  HANDLE heap = HeapCreate( 0 , szIniHeap , szIniHeap + tcb->xfer * tcb->ques ) ;
+  HANDLE heap = HeapCreate( 0 , szIniHeap , szIniHeap + szDataHeap ) ;
   if (!heap)
     return 1 ;
 
+  #define HEAP_VAR_FUNC(t,v,n) t* v = static_cast<t*>( HeapAlloc(heap, HEAP_ZERO_MEMORY, sizeof(t)*(n)) );
+  INITIAL_HEAP(HEAP_VAR_FUNC)
+
+  #undef HEAP_VAR_FUNC
+  #undef HEAP_SZ_FUNC
+  #undef INITIAL_HEAP
 
   tcb->idTh = ::GetCurrentThreadId() ;
 
@@ -218,10 +225,6 @@ unsigned int __stdcall cusb2::thread_proc(LPVOID pv)
   tcb->fTerminated = false ;
   tcb->fDone = false ;
 
-  HANDLE *event = (HANDLE*) HeapAlloc(heap, HEAP_ZERO_MEMORY, sizeof(HANDLE) * tcb->ques * 2); //new HANDLE[tcb->ques * 2];
-  OVERLAPPED *ovlp = (OVERLAPPED*) HeapAlloc(heap, HEAP_ZERO_MEMORY, sizeof(OVERLAPPED) * tcb->ques); //new OVERLAPPED[tcb->ques];
-  PUCHAR *data = (PUCHAR*) HeapAlloc(heap, HEAP_ZERO_MEMORY, sizeof(PUCHAR) * tcb->ques); //new PUCHAR[tcb->ques];
-  PUCHAR *context = (PUCHAR*) HeapAlloc(heap, HEAP_ZERO_MEMORY, sizeof(PUCHAR) * tcb->ques); //new PUCHAR[tcb->ques];
   ep->SetXferSize(tcb->xfer);
   BOOL ret = SetThreadPriority(tcb->th, tcb->prior);
 
@@ -234,7 +237,7 @@ unsigned int __stdcall cusb2::thread_proc(LPVOID pv)
       if (tcb->wb_begin_func)
         data[i] = (PUCHAR) tcb->wb_begin_func(tcb->xfer, tcb->idTh) ;
       else
-        data[i] = (PUCHAR) HeapAlloc(heap, HEAP_ZERO_MEMORY, tcb->xfer) ; //new UCHAR[tcb->xfer];
+        data[i] = (PUCHAR) HeapAlloc(heap, HEAP_ZERO_MEMORY, tcb->xfer) ;
       event[i] = CreateEvent(NULL, false, false, NULL) ;
       ovlp[i].hEvent = event[i] ;
       if(data[i]) {
@@ -472,18 +475,12 @@ unsigned int __stdcall cusb2::thread_proc(LPVOID pv)
     if (tcb->wb_begin_func && tcb->wb_finish_func)
       tcb->wb_finish_func(data[t], 0, tcb->idTh) ;
     CloseHandle(event[t]);
-    //HeapFree(heap,0,data[i]); //delete [] data[i];
   }
 
   CloseHandle(tcb->evResetCompleted) ;
   tcb->evResetCompleted = NULL ;
   CloseHandle(tcb->evAbortOrdered) ;
   tcb->evAbortOrdered = NULL ;
-
-  //delete [] context;
-  //delete [] data;
-  //delete [] ovlp;
-  //delete [] event;
 
   HeapDestroy(heap) ;
 
