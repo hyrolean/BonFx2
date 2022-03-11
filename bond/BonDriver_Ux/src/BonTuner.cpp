@@ -103,6 +103,9 @@ DWORD BUTTONPOWERWAIT    = 4000 ;
 DWORD BUTTONPOWEROFFDELAY= 0 ;
 BOOL REDUCESPACECHANGE   = TRUE ;
 
+// 高精度割込タイマー
+BOOL USEMMTIMER = TRUE ; // マルチメディアタイマー使用有無
+
 //リモコンのコマンド下二桁．0x04NN
 #define REMOCON_POWERON     0x8BU
 #define REMOCON_POWEROFF    0x8CU
@@ -201,15 +204,19 @@ extern "C" __declspec(dllexport) IBonDriver * CreateBonDriver()
 #pragma warning( default : 4273 )
 
     class mm_interval_lock {
+        static int refCnt;
         DWORD period_;
     public:
         mm_interval_lock(DWORD period) : period_(period) {
-            timeBeginPeriod(period_);
+            if(USEMMTIMER&&!refCnt) timeBeginPeriod(period_);
+            refCnt++;
         }
         ~mm_interval_lock() {
-            timeEndPeriod(period_);
+            --refCnt;
+            if(USEMMTIMER&&!refCnt) timeEndPeriod(period_);
         }
     };
+    int mm_interval_lock::refCnt=0;
     #define MMINTERVAL_PERIOD 10
 
 //////////////////////////////////////////////////////////////////////
@@ -834,6 +841,7 @@ bool CBonTuner::LoadIniFile(string strIniFileName)
   LOADINT(BUTTONPOWERWAIT) ;
   LOADINT(BUTTONPOWEROFFDELAY) ;
   LOADINT(REDUCESPACECHANGE) ;
+  LOADINT(USEMMTIMER) ;
   #undef LOADINT
   #undef LOADSTR2
   #undef LOADSTR

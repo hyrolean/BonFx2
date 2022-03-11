@@ -39,7 +39,7 @@ function MakeChannels(Space as str, Channels as use<ChRecord>&[]) as int
   dim TVChannels as use<ChRecord>[] ;
   for(dim i=0;i<GetLineCount();i++) {
     dim Line = GetLine(i) ;
-    if(countof(Line)>0&&Line[0]!=';') {
+    if(countof(Line)>0&&Line[0]!=';'&&Line[0]!='$'&&Line[0]!='%') {
       dim Elements as str[] ;
       if(Separate(Line,',',Elements)==9) {
         dim Record as use<ChRecord> ;
