@@ -673,7 +673,7 @@ BOOL CBonTuner::IRCodeTX(BYTE code)
     }
 
     DWORD success = 0 ;
-    DWORD s = Elapsed() ;
+    DWORD s = Elapsed() , t=s ;
 
     //ボタン押下
     exclusive_lock elock(&m_coXfer);
@@ -686,7 +686,7 @@ BOOL CBonTuner::IRCodeTX(BYTE code)
         *LPWORD(&cmd[len-2]) += m_wIRBase ;
       }
       if(m_pUsbFx2Driver->TransmitData(EPINDEX_OUT,cmd,len)) {
-        ::Sleep(BUTTONTXWAIT) ;
+        t=PastSleep(BUTTONTXWAIT,t) ;
         success++ ;
       }
     }
@@ -699,7 +699,7 @@ BOOL CBonTuner::IRCodeTX(BYTE code)
 
     //ボタン開放
     success = 0 ;
-    s = Elapsed() ;
+    t = s = Elapsed() ;
     elock.lock();
     for(DWORD e=0;BUTTONRELEASEWAIT>e;e=Elapsed(s)) {
       len = 0;
@@ -710,7 +710,7 @@ BOOL CBonTuner::IRCodeTX(BYTE code)
         *LPWORD(&cmd[len-2]) += m_wIRBase ;
       }
       if(m_pUsbFx2Driver->TransmitData(EPINDEX_OUT,cmd,len)) {
-        ::Sleep(BUTTONTXWAIT) ;
+        t=PastSleep(BUTTONTXWAIT,t) ;
         success++ ;
       }
     }
