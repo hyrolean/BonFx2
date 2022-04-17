@@ -12,7 +12,7 @@
 #include <io.h>
 #include "Resource.h"
 #include "BonTuner.h"
-
+#include "HRTimer.h"
 
 #pragma comment(lib, "SetupApi.lib")
 #pragma comment(lib, "WinMM.lib")
@@ -89,22 +89,23 @@ BOOL EXCLXFER = TRUE ;
   // 追加: ButtonPressTimes,ButtonReleaseTimes,ButtonInterimWait @ 2013/06/03
   //       (最新ファームでも発生するBSチャンネルスキャニングバグ対策用)
 DWORD COMMANDSENDTIMES   = 1 ; //2 ;
-DWORD COMMANDSENDINTERVAL= 3000;
+DWORD COMMANDSENDINTERVAL= 3600;
 DWORD COMMANDSENDWAIT    = 100 ;
 DWORD CHANNELCHANGEWAIT  = 250 ;
-DWORD BUTTONTXWAIT       = 10 ;
-DWORD BUTTONPRESSTIMES   = 2 ;
+DWORD BUTTONTXWAIT       = 40 ;
+DWORD BUTTONPRESSTIMES   = 4 ;
 DWORD BUTTONPRESSWAIT    = 200 ;
 DWORD BUTTONINTERIMWAIT  = 200 ;
-DWORD BUTTONRELEASETIMES = 2  ;
+DWORD BUTTONRELEASETIMES = 8  ;
 DWORD BUTTONRELEASEWAIT  = 400 ;
-DWORD BUTTONSPACEWAIT    = 400 ;
+DWORD BUTTONSPACEWAIT    = 250 ;
 DWORD BUTTONPOWERWAIT    = 4000 ;
 DWORD BUTTONPOWEROFFDELAY= 0 ;
 BOOL REDUCESPACECHANGE   = TRUE ;
 
 // 高精度割込タイマー
 BOOL USEMMTIMER = TRUE ; // マルチメディアタイマー使用有無
+BOOL USEHRTIMER = FALSE ; // ハイレゾリューションタイマー使用有無
 
 //リモコンのコマンド下二桁．0x04NN
 #define REMOCON_POWERON     0x8BU
@@ -314,7 +315,7 @@ const BOOL CBonTuner::OpenTuner()
         // 成功
         if(AUTOPOWERON) {
           IRCodeTX(REMOCON_POWERON);    //電源を入れる
-          Sleep(BUTTONPOWERWAIT) ;
+          HRSleep(BUTTONPOWERWAIT) ;
         }
 
         // DT-300 古いファームウェアの BS チューニングバグ対策 Method #1
@@ -359,14 +360,14 @@ void CBonTuner::CloseTuner()
 
         // 終了時にNHKにチャンネルを戻すかどうか
         if(AUTOTUNEBACKTONHK) {
-          Sleep(COMMANDSENDWAIT) ;
+          HRSleep(COMMANDSENDWAIT) ;
           IRCodeTX(REMOCON_CHIDEJI) ;
           IRCodeTX(REMOCON_NUMBER_1) ;
         }
 
         // 電源を切る
         if(AUTOPOWEROFF) {
-          Sleep(COMMANDSENDWAIT) ;
+          HRSleep(COMMANDSENDWAIT) ;
           IRCodeTX(REMOCON_POWEROFF);
           power = TRUE ;
           power_start = PastSleep() ;
@@ -374,7 +375,7 @@ void CBonTuner::CloseTuner()
 
         // リモコンロックの開放
         if(IRLOCK) {
-          Sleep(COMMANDSENDWAIT) ;
+          HRSleep(COMMANDSENDWAIT) ;
           IRCodeTX(0) ;
         }
 
@@ -405,22 +406,22 @@ void CBonTuner::CloseTuner()
 
 BOOL CBonTuner::U3BSFixTune()
 {
-  Sleep(COMMANDSENDWAIT) ;
+  HRSleep(COMMANDSENDWAIT) ;
   if(
     !IRCodeTX(REMOCON_BS)    ||
     !IRCodeTX(REMOCON_MENU)  ||
     !IRCodeTX(REMOCON_DOWN)  ||
     !IRCodeTX(REMOCON_ENTER) ||
     !IRCodeTX(REMOCON_ENTER)    )  return FALSE ;
-  Sleep(U3BSFIXWAIT) ;  // BS-Digital 検出まで約14-5秒くらいかかる
+  HRSleep(U3BSFIXWAIT) ;  // BS-Digital 検出まで約14-5秒くらいかかる
   if(!IRCodeTX(REMOCON_MENU)) return FALSE ;
-  Sleep(BUTTONSPACEWAIT) ;
+  HRSleep(BUTTONSPACEWAIT) ;
   return TRUE ;
 }
 
 BOOL CBonTuner::U3BSFixResetChannel()
 {
-  Sleep(COMMANDSENDWAIT) ;
+  HRSleep(COMMANDSENDWAIT) ;
   if(
     !IRCodeTX(REMOCON_BS) ||
     !IRCodeTX(REMOCON_3DIGITS) ||
@@ -445,16 +446,13 @@ const BOOL CBonTuner::SetChannel(const BYTE bCh)
         return FALSE;
     }
 
-    // TSデータパージ
-    PurgeTsStream();
-
     //DT300へのリモコンコマンド送信のタイミングはかなりシビアな為、
     //チャンネル切替の前にシステムの割込み効率を極限まで上げておく
     mm_interval_lock interlock(MMINTERVAL_PERIOD);
 
     PastSleep(COMMANDSENDINTERVAL,m_tkLastCommandSend);
     for(size_t j = 0; j < COMMANDSENDTIMES; j++){
-        Sleep(COMMANDSENDWAIT) ;
+        HRSleep(COMMANDSENDWAIT) ;
         for(size_t i = 0; i < min<size_t>(m_Channels[bCh].rcode.size(),REMOCON_CMD_LEN); i++){
             BYTE code = m_Channels[bCh].rcode[i] ;
             if(!IRButtonTX(code)){
@@ -484,7 +482,10 @@ const BOOL CBonTuner::SetChannel(const BYTE bCh)
 	//Fx側FIFOバッファ初期化
 	ResetFxFifo();
 
-	Sleep(CHANNELCHANGEWAIT);
+	HRSleep(CHANNELCHANGEWAIT);
+
+    // TSデータパージ
+    PurgeTsStream();
 
     //ストリーム送る
     is_channel_valid = TRUE;
@@ -695,7 +696,7 @@ BOOL CBonTuner::IRCodeTX(BYTE code)
     //PastSleep(BUTTONPRESSWAIT,s);
 
     elock.unlock();
-    Sleep(BUTTONINTERIMWAIT) ;
+    HRSleep(BUTTONINTERIMWAIT) ;
 
     //ボタン開放
     success = 0 ;
@@ -726,7 +727,7 @@ BOOL CBonTuner::IRCodeTX(BYTE code)
       case REMOCON_CS:
         if(m_cLastSpace!=code) {
           m_cLastSpace = code ;
-          Sleep(BUTTONSPACEWAIT) ;
+          HRSleep(BUTTONSPACEWAIT) ;
         }
         break ;
     }
@@ -842,10 +843,12 @@ bool CBonTuner::LoadIniFile(string strIniFileName)
   LOADINT(BUTTONPOWEROFFDELAY) ;
   LOADINT(REDUCESPACECHANGE) ;
   LOADINT(USEMMTIMER) ;
+  LOADINT(USEHRTIMER) ;
   #undef LOADINT
   #undef LOADSTR2
   #undef LOADSTR
   #undef LOADWSTR
+  SetHRTimerMode(USEHRTIMER);
   return true ;
 }
 

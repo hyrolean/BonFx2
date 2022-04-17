@@ -36,3 +36,4 @@
 #endif
 
 #include "..\dbtrace.h"
+#include "..\HRTimer.h"

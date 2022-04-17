@@ -161,6 +161,7 @@
   <ItemGroup>
     <ClInclude Include="..\cusb2.h" />
     <ClInclude Include="..\dbtrace.h" />
+    <ClInclude Include="..\HRTimer.h" />
     <ClInclude Include="..\IBonDriver.h" />
     <ClInclude Include="..\IBonDriver2.h" />
     <ClInclude Include="..\IBonDriver3.h" />
@@ -172,6 +173,7 @@
   <ItemGroup>
     <ClCompile Include="..\cusb2.cpp" />
     <ClCompile Include="..\dbtrace.cpp" />
+    <ClCompile Include="..\HRTimer.cpp" />
     <ClCompile Include="..\pryutil.cpp" />
     <ClCompile Include="..\UsbFx2Driver.cpp" />
     <ClCompile Include="stdafx.cpp">

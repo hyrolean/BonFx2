@@ -45,6 +45,8 @@ Release/
 _intermediate_/
 *.user
 *.sdf
+*.ncb
+*.suo
 
 # CyAPI
 unified/libcyapi

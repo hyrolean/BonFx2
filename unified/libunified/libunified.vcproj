@@ -285,6 +285,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\HRTimer.cpp"
+				>
+			</File>
+			<File
 				RelativePath="..\pryutil.cpp"
 				>
 			</File>
@@ -344,6 +348,10 @@
 			</File>
 			<File
 				RelativePath="..\dbtrace.h"
+				>
+			</File>
+			<File
+				RelativePath="..\HRTimer.h"
 				>
 			</File>
 			<File

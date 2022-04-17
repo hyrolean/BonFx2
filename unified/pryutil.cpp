@@ -73,7 +73,12 @@ DWORD PastSleep(DWORD wait,DWORD start)
 {
   if(!wait) return start ;
   DWORD past = Elapsed(start,GetTickCount()) ;
-  if(wait>past) Sleep(wait-past) ;
+  if(wait>past)
+#ifdef PRY8EAlByw_HRTIMER
+    HRSleep(wait-past);
+#else
+    Sleep(wait-past) ;
+#endif
   return start+wait ;
 }
 //---------------------------------------------------------------------------

@@ -131,6 +131,8 @@
             [unified\\CyAPI.h] {}
             [unified\\dbtrace.cpp] {}
             [unified\\dbtrace.h] {}
+            [unified\\HRTimer.cpp] {}
+            [unified\\HRTimer.h] {}
             [unified\\IBonDriver.h] {}
             [unified\\IBonDriver2.h] {}
             [unified\\IBonDriver3.h] {}
