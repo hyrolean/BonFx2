@@ -387,9 +387,9 @@ UINT8 SuspendTC90502(UINT8 TS, BOOL Suspended)
 		unsigned char jslpadc = Suspended ? 0x80 : 0 ;
 		unsigned char tetim   = Suspended ? 0 : 0x1F ;
 		unsigned char watim   = Suspended ? 0xFF : 0 ;
-		if(WriteReg(DemodAddress,0x13,jslpadc))         return TC90502_ERR;
-		if(WriteReg(DemodAddress,0x15,tetim  ))         return TC90502_ERR;
-		if(WriteReg(DemodAddress,0x17,watim  ))         return TC90502_ERR;
+		if(WriteReg(DemodAddress+1,0x13,jslpadc))         return TC90502_ERR;
+		if(WriteReg(DemodAddress+1,0x15,tetim  ))         return TC90502_ERR;
+		if(WriteReg(DemodAddress+1,0x17,watim  ))         return TC90502_ERR;
 	}
 
 	return TC90502_OK;
