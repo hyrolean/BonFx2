@@ -12,7 +12,7 @@
 //#include "Common.h"
 #include "MxL5007.h"
 #include "tc90532.h"
-
+#include "HRTimer.h"
 
 #define	CH_MAX					62//-13			//The Ch maximum number
 
@@ -256,7 +256,7 @@ UINT8 SetStv6110a(UINT8 BSCh, DWORD kHz)
 //		if(ReadTuner(DemodAddress+1,0xC6,0x00,&buffer) != 0)
 //			return 1;
 		i++;
-		Sleep(10);
+		HRSleep(10);
 //printf("%2x",buffer);
 	}while((i<10)/* && ((buffer & 0x04) != 0)*/);
 
@@ -279,7 +279,7 @@ CF = 0x18;
 //		if(ReadTuner(DemodAddress+1,0xC6,5,&buffer) != 0)
 //			return 1;
 		i++;
-		Sleep(10);
+		HRSleep(10);
 	}while((i<10)/* && ((buffer & 0x02) != 0)*/);
 
 	return 0;
@@ -289,7 +289,7 @@ CF = 0x18;
 // Set Demod ISDB-T TC90502
 UINT8 SetTC90502(UINT8 TS)
 {
-	if(TS == ISDB_T)
+    if(TS == ISDB_T)
 	{
 	    if(WriteReg(DemodAddress,0x01,0x40))    return TC90502_ERR;				//復調リセット
 //	    if(WriteReg(DemodAddress,0x0E,0x47))    return TC90502_ERR;
@@ -320,13 +320,14 @@ UINT8 SetTC90502(UINT8 TS)
 	    if(WriteReg(DemodAddress,0x71,0x20))    return TC90502_ERR;				//パリティ期間クロック停止,データ停止
 //	    if(WriteReg(DemodAddress,0x75,0x02))    return TC90502_ERR;				//CLK反転
 //	    if(WriteReg(DemodAddress,0x76,0x0A))    return TC90502_ERR;				//NullパケットはValid信号を立てない
-	    if(WriteReg(DemodAddress,0x76,0x08))    return TC90502_ERR;				//NullパケットはValid信号を立てない
+//	    if(WriteReg(DemodAddress,0x76,0x08))    return TC90502_ERR;				//NullパケットはValid信号を立てない
+
 //	    if(WriteReg(DemodAddress,0x77,0x01))    return TC90502_ERR;				//ビダビ復号後測定モード
 	}
 	if(TS == ISDB_S)
 	{
 	    if(WriteReg(DemodAddress+1,0x01,0x80))    return TC90502_ERR;
-//	    if(WriteReg(DemodAddress+1,0x03,0x01))    return TC90502_ERR;			//PSK復調リセット
+	    if(WriteReg(DemodAddress+1,0x03,0x01))    return TC90502_ERR;			//PSK復調リセット
 //	    if(WriteReg(DemodAddress+1,0x04,0x02))    return TC90502_ERR;			//BSCS SCLK反転
 
 
@@ -349,13 +350,64 @@ UINT8 SetTC90502(UINT8 TS)
 	    if(WriteReg(DemodAddress+1,0x85,0x7A))    return TC90502_ERR;
 //	    if(WriteReg(DemodAddress+1,0x87,0x04))    return TC90502_ERR;
 //	    if(WriteReg(DemodAddress+1,0xA3,0x77))    return TC90502_ERR;
-	    if(WriteReg(DemodAddress+1,0xA3,0xF7))    return TC90502_ERR;
+//	    if(WriteReg(DemodAddress+1,0xA3,0xF7))    return TC90502_ERR;
 	    if(WriteReg(DemodAddress+1,0xA5,0x00))    return TC90502_ERR;
 
 //	    if(WriteReg(DemodAddress+1,0x8D,0x20))    return TC90502_ERR;			//Don't set TEI
 //	    if(WriteReg(DemodAddress+1,0x8E,0x02))    return TC90502_ERR;			//NullパケットはValid信号を立てない
-	    if(WriteReg(DemodAddress+1,0x8E,0x26))    return TC90502_ERR;			//NullパケットはValid信号を立てない
-	}
+//	    if(WriteReg(DemodAddress+1,0x8E,0x26))    return TC90502_ERR;			//NullパケットはValid信号を立てない
+    }
     return TC90502_OK;
+}
+
+// 復調リセット
+UINT8  ResetTC90502(UINT8 TS)
+{
+	if(TS == ISDB_T) {
+		if(WriteReg(DemodAddress, 0x01, 0x40))      return TC90502_ERR;
+	}
+
+	if(TS == ISDB_S) {
+		if(WriteReg(DemodAddress+1, 0x03, 0x01))    return TC90502_ERR;
+	}
+
+	return TC90502_OK;
+}
+
+// 省電力設定
+UINT8 SuspendTC90502(UINT8 TS, BOOL Suspended)
+{
+	if(TS == ISDB_T) {
+		unsigned char spladc = Suspended ? 0x80 : 0 ;
+		unsigned char spltim = Suspended ? 0x70 : 0 ;
+		if(WriteReg(DemodAddress,0x03,spladc|spltim))   return TC90502_ERR;
+	}
+
+	if(TS == ISDB_S) {
+		unsigned char jslpadc = Suspended ? 0x80 : 0 ;
+		unsigned char tetim   = Suspended ? 0 : 0x1F ;
+		unsigned char watim   = Suspended ? 0xFF : 0 ;
+		if(WriteReg(DemodAddress,0x13,jslpadc))         return TC90502_ERR;
+		if(WriteReg(DemodAddress,0x15,tetim  ))         return TC90502_ERR;
+		if(WriteReg(DemodAddress,0x17,watim  ))         return TC90502_ERR;
+	}
+
+	return TC90502_OK;
+}
+
+// ヌルパケ設定
+UINT8 SetNuValTC90502(UINT8 TS, BOOL NullDrop)
+{
+	if(TS == ISDB_T) {
+		unsigned char nuval = NullDrop ? 8 : 0 ;
+		if(WriteReg(DemodAddress,0x76,nuval))           return TC90502_ERR;
+	}
+
+	if(TS == ISDB_S) {
+		unsigned char nuval = NullDrop ? 2 : 0 ;
+		if(WriteReg(DemodAddress+1,0x8E,0x24|nuval))    return TC90502_ERR;
+	}
+
+	return TC90502_OK;
 }
 

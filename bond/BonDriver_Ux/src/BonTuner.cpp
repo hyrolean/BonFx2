@@ -89,16 +89,16 @@ BOOL EXCLXFER = TRUE ;
   // 追加: ButtonPressTimes,ButtonReleaseTimes,ButtonInterimWait @ 2013/06/03
   //       (最新ファームでも発生するBSチャンネルスキャニングバグ対策用)
 DWORD COMMANDSENDTIMES   = 1 ; //2 ;
-DWORD COMMANDSENDINTERVAL= 3600;
+DWORD COMMANDSENDINTERVAL= 3000;
 DWORD COMMANDSENDWAIT    = 100 ;
 DWORD CHANNELCHANGEWAIT  = 250 ;
 DWORD BUTTONTXWAIT       = 40 ;
 DWORD BUTTONPRESSTIMES   = 4 ;
 DWORD BUTTONPRESSWAIT    = 200 ;
 DWORD BUTTONINTERIMWAIT  = 200 ;
-DWORD BUTTONRELEASETIMES = 8  ;
+DWORD BUTTONRELEASETIMES = 4  ;
 DWORD BUTTONRELEASEWAIT  = 400 ;
-DWORD BUTTONSPACEWAIT    = 250 ;
+DWORD BUTTONSPACEWAIT    = 200 ;
 DWORD BUTTONPOWERWAIT    = 4000 ;
 DWORD BUTTONPOWEROFFDELAY= 0 ;
 BOOL REDUCESPACECHANGE   = TRUE ;
@@ -431,10 +431,10 @@ BOOL CBonTuner::U3BSFixResetChannel()
   return TRUE ;
 }
 
-void CBonTuner::ResetFxFifo()
+void CBonTuner::ResetFxFifo(bool fPause)
 {
     if(m_pUsbFx2Driver)
-      m_pUsbFx2Driver->ResetFifoThread(m_dwFifoThreadIndex) ;
+      m_pUsbFx2Driver->ResetFifoThread(m_dwFifoThreadIndex,fPause) ;
 }
 
 const BOOL CBonTuner::SetChannel(const BYTE bCh)
@@ -445,6 +445,11 @@ const BOOL CBonTuner::SetChannel(const BYTE bCh)
     if(bCh < 0 || bCh >= m_Channels.size()){
         return FALSE;
     }
+
+	//Fx側FIFOバッファ停止
+	ResetFxFifo(true);
+    // TSデータパージ
+    PurgeTsStream();
 
     //DT300へのリモコンコマンド送信のタイミングはかなりシビアな為、
     //チャンネル切替の前にシステムの割込み効率を極限まで上げておく
@@ -480,12 +485,9 @@ const BOOL CBonTuner::SetChannel(const BYTE bCh)
     */
 
 	//Fx側FIFOバッファ初期化
-	ResetFxFifo();
+	ResetFxFifo(false);
 
 	HRSleep(CHANNELCHANGEWAIT);
-
-    // TSデータパージ
-    PurgeTsStream();
 
     //ストリーム送る
     is_channel_valid = TRUE;
@@ -678,7 +680,7 @@ BOOL CBonTuner::IRCodeTX(BYTE code)
 
     //ボタン押下
     exclusive_lock elock(&m_coXfer);
-    for(DWORD e=0;BUTTONPRESSWAIT>e;e=Elapsed(s)) {
+    for(DWORD e=0,n=BUTTONPRESSWAIT/BUTTONTXWAIT;BUTTONPRESSWAIT>e;e=Elapsed(s)) {
       len = 0;
       for(DWORD i=0;i<BUTTONPRESSTIMES;i++) {
         cmd[len++] = CMD_IR_CODE;
@@ -687,8 +689,8 @@ BOOL CBonTuner::IRCodeTX(BYTE code)
         *LPWORD(&cmd[len-2]) += m_wIRBase ;
       }
       if(m_pUsbFx2Driver->TransmitData(EPINDEX_OUT,cmd,len)) {
+        if(++success>=n) break ;
         t=PastSleep(BUTTONTXWAIT,t) ;
-        success++ ;
       }
     }
     if(!success)
@@ -696,13 +698,12 @@ BOOL CBonTuner::IRCodeTX(BYTE code)
     //PastSleep(BUTTONPRESSWAIT,s);
 
     elock.unlock();
-    HRSleep(BUTTONINTERIMWAIT) ;
+    t = s = PastSleep(BUTTONINTERIMWAIT+BUTTONPRESSWAIT,s);
 
     //ボタン開放
     success = 0 ;
-    t = s = Elapsed() ;
     elock.lock();
-    for(DWORD e=0;BUTTONRELEASEWAIT>e;e=Elapsed(s)) {
+    for(DWORD e=0,n=BUTTONRELEASEWAIT/BUTTONTXWAIT;BUTTONRELEASEWAIT>e;e=Elapsed(s)) {
       len = 0;
       for(DWORD i=0;i<BUTTONRELEASETIMES;i++) {
         cmd[len++] = CMD_IR_CODE;
@@ -711,13 +712,12 @@ BOOL CBonTuner::IRCodeTX(BYTE code)
         *LPWORD(&cmd[len-2]) += m_wIRBase ;
       }
       if(m_pUsbFx2Driver->TransmitData(EPINDEX_OUT,cmd,len)) {
+        if(++success>=n) break ;
         t=PastSleep(BUTTONTXWAIT,t) ;
-        success++ ;
       }
     }
     if(!success)
       return FALSE ;
-    //PastSleep(BUTTONRELEASEWAIT,s);
 
     elock.unlock();
     switch(code) {
@@ -727,8 +727,11 @@ BOOL CBonTuner::IRCodeTX(BYTE code)
       case REMOCON_CS:
         if(m_cLastSpace!=code) {
           m_cLastSpace = code ;
-          HRSleep(BUTTONSPACEWAIT) ;
+          s=PastSleep(BUTTONSPACEWAIT+BUTTONRELEASEWAIT,s);
         }
+        break ;
+      default:
+        s=PastSleep(BUTTONRELEASEWAIT,s);
         break ;
     }
 

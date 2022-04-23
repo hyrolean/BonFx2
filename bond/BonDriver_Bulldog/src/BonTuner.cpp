@@ -11,7 +11,9 @@
 #include <Math.h>
 #include <assert.h>
 #include "Resource.h"
+
 #include "BonTuner.h"
+#include "HRTimer.h"
 #include "TC90532\TC90532.h"
 #include "TC90532\MxL5007.h"
 
@@ -26,12 +28,13 @@
 // 受信サイズ
 DWORD TSDATASIZE        =   48128UL  ;       // TSデータのサイズ
 DWORD TSQUEUENUM        =   36UL     ;       // TSデータの環状ストック数(最大数63まで)
-DWORD TSTHREADWAIT      =   1000UL   ;       // TSスレッドキュー毎に待つ最大時間
+DWORD TSTHREADWAIT      =   2000UL   ;       // TSスレッドキュー毎に待つ最大時間
 int   TSTHREADPRIORITY  =   THREAD_PRIORITY_HIGHEST ; // TSスレッドの優先度
 BOOL  TSWRITEBACK       =   TRUE     ;       // TSデータの書き戻しによるバッファ書き高速化
 BOOL  TSWRITEBACKDUMMY  =   FALSE    ;       // TSデータの書き戻し残量がない場合にダミー領域を有効にするかどうか
 BOOL  TSALLOCWAITING    =   FALSE    ;       // TSデータのアロケーションの完了を待つかどうか
 int   TSALLOCPRIORITY   =   THREAD_PRIORITY_HIGHEST ; // TSアロケーションスレッドの優先度
+BOOL  TSDROPNULLPACKETS =   TRUE     ;       // TSデータのヌルパケットを除去するかどうか
 
 // FIFOバッファ設定
 DWORD ASYNCTSQUEUENUM    =   66UL   ;        // 非同期TSデータの環状ストック数(初期値)
@@ -51,6 +54,9 @@ DWORD ISDBSSETTSIDTIMES		= 2 ;
 DWORD ISDBSSETTSLOCKWAIT    = 10 ;
 DWORD ISDBSSETTSIDWAIT		= 800 ;
 DWORD CHANNELWAIT   		= 800 ;
+
+// 高精度割込タイマー
+BOOL USEHRTIMER = FALSE ; // ハイレゾリューションタイマー使用有無
 
 // 既定のチャンネル情報
 BOOL DEFSPACEVHF               = FALSE ; // VHFを含めるかどうか
@@ -143,7 +149,7 @@ CBonTuner::CBonTuner()
 
 	m_pThis = this;
 	fOpened=false;
-    fModeTerra=false ;
+    fModeTerra=true ;
 
 	m_yFx2Id = 0 ;
 	InitTunerProperty();
@@ -244,6 +250,7 @@ const BOOL CBonTuner::OpenTuner()
 	}
 
 	fOpened=true;
+    SuspendTC90502(fModeTerra?ISDB_T:ISDB_S,FALSE);
 
 	return(TRUE);
 }
@@ -255,8 +262,12 @@ void CBonTuner::CloseTuner()
 //	OutputDebugString(_T("CloseTuner\n"));
 
     if(fModeTerra) {
-      if(fOpened) SetMxl5007(0); // Terra Sleep
-      fModeTerra=false ;
+      if(fOpened) {
+        SetMxl5007(0); // Terra Sleep
+        SuspendTC90502(ISDB_T,TRUE);
+      }
+    }else if(fOpened) {
+      SuspendTC90502(ISDB_S,TRUE);
     }
 
 	fOpened=false;
@@ -342,12 +353,12 @@ bool	CBonTuner::SetISDBTChannel(int ch,DWORD kHz)
 	for(DWORD i=ISDBTCOMMANDSENDTIMES;i;i--) {
 	  //if(i) Sleep(100) ;
 	  SetMxl5007(ch,kHz);
-	  ::Sleep(30);
+	  ::HRSleep(30);
 	  tuned=false ;
 	  if(TC90502_OK==SetTC90502(ISDB_T)) {
 		  tuned = true ;
 	  }
-  	  if(i>1) Sleep(ISDBTCOMMANDSENDWAIT);
+  	  if(i>1) HRSleep(ISDBTCOMMANDSENDWAIT);
 	}
 	DBGOUT("SetISDBTChannel: tuning %s.\n",tuned?"succeeded":"failed") ;
 	return tuned ;
@@ -369,7 +380,7 @@ bool	CBonTuner::SetISDBSChannel(int ch,WORD stream,WORD tsid,DWORD kHz)
 		bool ok=true ;
         bool reset=false ;
         SetStv6110a(ch,kHz);
-        ::Sleep(30);
+        ::HRSleep(30);
         ok = TC90502_OK==SetTC90502(ISDB_S) ;
         if(ok) {
           ok=WriteReg(DEMODSADRS, 0x03, 0x01)?false:true ;  //同期シーケンス開始
@@ -384,11 +395,11 @@ bool	CBonTuner::SetISDBSChannel(int ch,WORD stream,WORD tsid,DWORD kHz)
               if(!locked) {
                 locked = IsLockISDBS()==stLock ;
                 if(locked) {
-                  ::Sleep(ISDBSSETTSLOCKWAIT) ;
+                  ::HRSleep(ISDBSSETTSLOCKWAIT) ;
                 }
               }else {
                 if(!tsid||tsid==0xFFFF) {
-                  //::Sleep(40) ;
+                  //::HRSleep(40) ;
                   tsid = stream<8 ? SelectTSID((BYTE)stream) : stream ;
                   if(tsid!=0&&tsid!=0xFFFF) {
                     DBGOUT("SetISDBSChannel: TSID=%04x\n",tsid) ;
@@ -399,13 +410,13 @@ bool	CBonTuner::SetISDBSChannel(int ch,WORD stream,WORD tsid,DWORD kHz)
                   break ;
                 }
               }
-              ::Sleep(40) ;
+              ::HRSleep(40) ;
             }
             if(j>1&&tuned)
-              ::Sleep(40) ;
+              ::HRSleep(40) ;
           }
         }
-        if(i>1) Sleep(ISDBSCOMMANDSENDWAIT);
+        if(i>1) HRSleep(ISDBSCOMMANDSENDWAIT);
 	}
 /*
 	DWORD	tm=GetTickCount()+3000;
@@ -460,7 +471,7 @@ CLockStatus	CBonTuner::IsLock(void)
 	if (m_Channels[ch].isISDBT())
 		return(IsLockISDBT());
 	else if (m_Channels[ch].isISDBS())
-	return(IsLockISDBS());
+		return(IsLockISDBS());
 	return stUnknown ;
 }
 
@@ -541,10 +552,10 @@ double	CBonTuner::GetBER(void)
 	return(ber);
 }
 
-void CBonTuner::ResetFxFifo()
+void CBonTuner::ResetFxFifo(bool fPause)
 {
 	if(m_pUsbFx2Driver)
-	  m_pUsbFx2Driver->ResetFifoThread(m_dwFifoThreadIndex) ;
+	  m_pUsbFx2Driver->ResetFifoThread(m_dwFifoThreadIndex,fPause) ;
 }
 
 //*****	SetRealChannel	*****
@@ -558,19 +569,28 @@ const BOOL CBonTuner::SetRealChannel(const DWORD dwCh)
 		return FALSE;
 	}
 
+	// Fx側バッファ停止
+	ResetFxFifo(true) ;
 	// 撮り溜めたTSストリームの破棄
 	PurgeTsStream();
 
 	//チューニング
 	bool tuned=false ;
 	if(m_Channels[dwCh].isISDBT()) {  // 地上波
+      if(!fModeTerra) {
+        SuspendTC90502(ISDB_S,TRUE);
+        SuspendTC90502(ISDB_T,FALSE);
+        HRSleep(40);
+      }
 	  tuned = SetISDBTChannel(m_Channels[dwCh].Channel,
 	    m_Channels[dwCh].Freq) ;
       fModeTerra=true ;
 	}else if(m_Channels[dwCh].isISDBS()) { // BS/CS
       if(fModeTerra) {
-        SetMxl5007(0) ; // Terra Sleep
-        Sleep(40);
+        SetMxl5007(0) ; // Terra Suspend
+        SuspendTC90502(ISDB_T,TRUE);
+        SuspendTC90502(ISDB_S,FALSE);
+        HRSleep(40);
       }
       WORD stream = m_Channels[dwCh].Stream ;
 	  WORD tsid = m_Channels[dwCh].TSID ;
@@ -581,18 +601,28 @@ const BOOL CBonTuner::SetRealChannel(const DWORD dwCh)
 	  return FALSE ;
 	}
 
+
 	if(tuned) {
-	  bool locking=false ;
+	  ResetTC90502(fModeTerra?ISDB_T:ISDB_S);
+      bool locking=false ;
 	  for(DWORD e=0,s=Elapsed();CHANNELWAIT>e;e=Elapsed(s)) {
-		Sleep(40);
+		HRSleep(40);
 	    locking = (fModeTerra?IsLockISDBT():IsLockISDBS())==stLock ;
 		if(locking) break ;
 	  }
       if(!locking) tuned=false ;
+      else {
+        if(fModeTerra) {
+          SetNuValTC90502(ISDB_T,TSDROPNULLPACKETS) ;
+        }else {
+          SetNuValTC90502(ISDB_S,TSDROPNULLPACKETS) ;
+        }
+		HRSleep(40);
+      }
 	}
 
 	// Fx側バッファ初期化
-	ResetFxFifo() ;
+	ResetFxFifo(false) ;
 
 	//ストリーム再開
 	is_channel_valid = tuned ? TRUE : FALSE ;
@@ -969,6 +999,7 @@ bool    CBonTuner::LoadIniFile(std::string strIniFileName)
   LOADINT(TSWRITEBACKDUMMY) ;
   LOADINT(TSALLOCWAITING) ;
   LOADINT(TSALLOCPRIORITY);
+  LOADINT(TSDROPNULLPACKETS) ;
   LOADINT(ASYNCTSQUEUENUM) ;
   LOADINT(ASYNCTSQUEUEMAX) ;
   LOADINT(ASYNCTSEMPTYBORDER) ;
@@ -992,6 +1023,7 @@ bool    CBonTuner::LoadIniFile(std::string strIniFileName)
   LOADINT(ISDBSSETTSLOCKWAIT);
   LOADINT(ISDBSSETTSIDWAIT) ;
   LOADINT(CHANNELWAIT) ;
+  LOADINT(USEHRTIMER) ;
   wstring InvisibleSpaces ;
   LOADWSTR(InvisibleSpaces) ;
   split(m_InvisibleSpaces,InvisibleSpaces,L',') ;
@@ -1010,6 +1042,7 @@ bool    CBonTuner::LoadIniFile(std::string strIniFileName)
   #undef LOADSTR2
   #undef LOADSTR
   #undef LOADWSTR
+  SetHRTimerMode(USEHRTIMER);
   return true ;
 }
 

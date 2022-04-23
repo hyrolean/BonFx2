@@ -174,10 +174,10 @@ const bool CUsbFx2Driver::CreateFifoThread(
 	return true;
 }
 
-const bool CUsbFx2Driver::ResetFifoThread(const DWORD dwThreadIndex)
+const bool CUsbFx2Driver::ResetFifoThread(const DWORD dwThreadIndex, bool fPause)
 {
 	if(dwThreadIndex>=m_ThreadArray.size()) return false ;
-	m_ThreadArray[dwThreadIndex].pThreadTcb->reset() ;
+	m_ThreadArray[dwThreadIndex].pThreadTcb->reset(fPause) ;
 	return true ;
 }
 

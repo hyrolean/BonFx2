@@ -37,6 +37,7 @@ struct _cusb2_tcb
     bool fResetOrdered;
     HANDLE evAbortOrdered ;
     HANDLE evResetCompleted ;
+    bool fPause;
     bool fTerminated;
     bool fDone;
     //---- wait & thread priority -----
@@ -58,6 +59,7 @@ struct _cusb2_tcb
       fResetOrdered = 0 ;
       evAbortOrdered = 0 ;
       evResetCompleted = 0 ;
+      fPause = 0 ;
       fTerminated = 0 ;
       fDone = 0 ;
       wait = 500 ;
@@ -67,7 +69,9 @@ struct _cusb2_tcb
       fTerminated = true ;
       if(evAbortOrdered) SetEvent(evAbortOrdered) ;
     }
-    void reset() {
+    void reset(bool pause=false) {
+      fPause=pause;
+      if(pause) return;
       if(evResetCompleted) ResetEvent(evResetCompleted) ;
       fResetOrdered = true ;
       if(evAbortOrdered) SetEvent(evAbortOrdered) ;

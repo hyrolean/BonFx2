@@ -5,8 +5,8 @@
 
 #pragma once
 
-#ifndef _WIN32_WINNT		// Windows XP 以降のバージョンに固有の機能の使用を許可します。
-#define _WIN32_WINNT 0x0501	// これを Windows の他のバージョン向けに適切な値に変更してください。
+#ifndef _WIN32_WINNT		// Windows Vista 以降のバージョンに固有の機能の使用を許可します。
+#define _WIN32_WINNT 0x0600	// これを Windows の他のバージョン向けに適切な値に変更してください。
 #endif
 
 #include <Tchar.h>

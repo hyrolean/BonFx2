@@ -129,7 +129,7 @@ bool cusb2::fwload(u8 id, u8 *fw, u8 *string1)
         USBDevice->Close();
         if(!cons_mode) return false;
         loading = true;
-        Sleep(100);
+        HRSleep(100);
     }
 
     //再起動後のファームに接続
@@ -154,7 +154,7 @@ bool cusb2::fwload(u8 id, u8 *fw, u8 *string1)
             USBDevice->Close();
         }
         if(find || !cons_mode) break;
-        Sleep(100);
+        HRSleep(100);
     }
     loading = false;
     if(!find) return false;
@@ -260,6 +260,9 @@ unsigned int __stdcall cusb2::thread_proc(LPVOID pv)
       event[tcb->ques+1+i]=event[i] ;
 	}
 
+    int per_limit_usec = (WAIT_MSEC_LIMIT*1000)/tcb->ques ;
+    int per_limit_msec = per_limit_usec / 1000 ; per_limit_usec %=1000 ;
+
     u32 next_wait_index = 0 ;
     bool retried=false ;
     for (i = 0;!tcb->fTerminated;) {
@@ -273,7 +276,20 @@ unsigned int __stdcall cusb2::thread_proc(LPVOID pv)
         if (i == next_wait_index ) { // 待機完了しているものはスキップする
           // ※ WaitForMultipleObjects で待てるハンドル数は最大64個まで
           if(context[i] && data[i]) {
-            DWORD waitRes = WaitForMultipleObjects(tcb->ques + 1, &event[i], FALSE, WAIT_MSEC_LIMIT) ;
+            DWORD waitRes=HRWaitForSingleObject(event[i], per_limit_msec, per_limit_usec) ;
+            if(waitRes!=WAIT_OBJECT_0) {
+              waitRes = HRWaitForMultipleObjects(tcb->ques + 1, &event[i], FALSE, WAIT_MSEC_LIMIT) ;
+            }else {
+              if(HRWaitForSingleObject(event[tcb->ques],0)==WAIT_OBJECT_0) {
+                waitRes += tcb->ques ; // aborted
+              }else for(u32 j=1;j<tcb->ques+1;j++) {
+                if(i+j==tcb->ques) continue;
+                else if(HRWaitForSingleObject(event[i+j],0)==WAIT_OBJECT_0) {
+                  if(i+j==tcb->ques+1) waitRes++;
+                  waitRes++;
+                }else break;
+              }
+            }
             bool inner = (waitRes >= WAIT_OBJECT_0 && waitRes < WAIT_OBJECT_0 + tcb->ques + 1) ;
             aborted = inner && (waitRes - WAIT_OBJECT_0) + i == tcb->ques;
             if (!aborted) {
@@ -349,7 +365,7 @@ unsigned int __stdcall cusb2::thread_proc(LPVOID pv)
         retried = false ;
 
       if (success) {
-        if (tcb->cb_func) {
+        if (tcb->cb_func && !tcb->fPause) {
           if (!tcb->cb_func(data[i], (u32)len, tcb->idTh)) {
             tcb->fTerminated = true;
           }
@@ -360,7 +376,7 @@ unsigned int __stdcall cusb2::thread_proc(LPVOID pv)
       }
 
       if (tcb->wb_finish_func&&data[i]) {
-        tcb->wb_finish_func(data[i], success ? len : 0, tcb->idTh);
+        tcb->wb_finish_func(data[i], success && !tcb->fPause ? len : 0, tcb->idTh);
         data[i]=NULL ;
       }
       if(!aborted) {
@@ -501,7 +517,7 @@ cusb2_tcb* cusb2::start_thread(u8 epaddr, u32 xfer, s32 ques, u32 wait, int prio
     tcb->prior = prior;
     tcb->cb_func = cb_func;                                 // Modified by 拡張ツール中の人
     tcb->th = (HANDLE)_beginthreadex(NULL, 0, cusb2::thread_proc, tcb, 0, NULL);
-    Sleep(100);
+    HRSleep(100);
     return tcb;
 }
 

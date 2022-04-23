@@ -165,6 +165,7 @@
     <ClInclude Include="..\IBonDriver.h" />
     <ClInclude Include="..\IBonDriver2.h" />
     <ClInclude Include="..\IBonDriver3.h" />
+    <ClInclude Include="..\IBonTransponder.h" />
     <ClInclude Include="..\pryutil.h" />
     <ClInclude Include="..\UsbFx2Driver.h" />
     <ClInclude Include="stdafx.h" />

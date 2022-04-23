@@ -16,6 +16,14 @@ using namespace std ;
 namespace PRY8EAlByw {
 //---------------------------------------------------------------------------
 
+#ifdef PRY8EAlByw_HRTIMER
+  #define wait_object HRWaitForSingleObject
+  #define delay HRSleep
+#else
+  #define wait_object WaitForSingleObject
+  #define delay Sleep
+#endif
+
 //===========================================================================
 // Statics
 //---------------------------------------------------------------------------
@@ -73,12 +81,7 @@ DWORD PastSleep(DWORD wait,DWORD start)
 {
   if(!wait) return start ;
   DWORD past = Elapsed(start,GetTickCount()) ;
-  if(wait>past)
-#ifdef PRY8EAlByw_HRTIMER
-    HRSleep(wait-past);
-#else
-    Sleep(wait-past) ;
-#endif
+  if(wait>past) delay(wait-past);
   return start+wait ;
 }
 //---------------------------------------------------------------------------
@@ -716,7 +719,7 @@ HANDLE event_object::open() const
 //---------------------------------------------------------------------------
 DWORD event_object::wait(DWORD timeout)
 {
-  return is_valid() ? WaitForSingleObject(event,timeout) : WAIT_FAILED ;
+  return is_valid() ? wait_object(event,timeout) : WAIT_FAILED ;
 }
 //---------------------------------------------------------------------------
 BOOL event_object::set()
@@ -831,7 +834,7 @@ CAsyncFifo::~CAsyncFifo()
     bool abnormal=false ;
     if(AllocThread!=INVALID_HANDLE_VALUE) {
       AllocOrderEvent.set() ;
-      if(::WaitForSingleObject(AllocThread,30000) != WAIT_OBJECT_0) {
+      if(wait_object(AllocThread,30000) != WAIT_OBJECT_0) {
         ::TerminateThread(AllocThread, 0);
         abnormal=true ;
       }
@@ -1164,7 +1167,7 @@ bool CSharedMemory::IsValid() const
 bool CSharedMemory::Lock(DWORD timeout) const
 {
     if(!HMutex) return false ;
-    return WaitForSingleObject(HMutex, timeout) == WAIT_OBJECT_0 ;
+    return wait_object(HMutex, timeout) == WAIT_OBJECT_0 ;
 }
 //---------------------------------------------------------------------------
 bool CSharedMemory::Unlock() const

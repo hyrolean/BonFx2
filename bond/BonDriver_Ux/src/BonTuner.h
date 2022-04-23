@@ -41,7 +41,7 @@ public:
     const BOOL OpenTuner(void);
     void CloseTuner(void);
 
-    void    ResetFxFifo() ;
+    void    ResetFxFifo(bool fPause) ;
 
     const BOOL SetChannel(const BYTE bCh);
     const float GetSignalLevel(void);

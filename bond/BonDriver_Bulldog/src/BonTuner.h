@@ -163,7 +163,7 @@ protected:
 	bool    LoadChannelFile(std::string strChannelFileName);
 	void    InitChannelToDefault() ;
     const BOOL SetRealChannel(const DWORD dwCh) ;
-    void    ResetFxFifo() ;
+    void    ResetFxFifo(bool fPause) ;
 
 	CUsbFx2Driver	*m_pUsbFx2Driver;
 	HANDLE			m_hOnStreamEvent;

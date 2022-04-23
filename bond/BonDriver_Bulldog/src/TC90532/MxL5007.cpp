@@ -28,7 +28,7 @@
 #include <windows.h>
 //#include "Common.h"
 #include "MxL5007.h"
-
+#include "HRTimer.h"
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++//
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++//
@@ -219,7 +219,7 @@ UINT32 MxL_I2C_Read(UINT8 DemodAddr,UINT8 DeviceAddr, UINT8 Addr, UINT8* mData)
 ******************************************************************************/
 void MxL_Delay(UINT32 mSec)
 {
-	Sleep(mSec);
+	HRSleep(mSec);
 //    delay(mSec);
 }
 

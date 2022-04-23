@@ -367,6 +367,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\IBonTransponder.h"
+				>
+			</File>
+			<File
 				RelativePath="..\pryutil.h"
 				>
 			</File>

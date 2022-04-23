@@ -60,7 +60,7 @@ public:
       const DWORD dwQueNum = DEF_QUENUM, const DWORD dwWait = DEF_WAIT, const int iPrior = DEF_PRIOR,
       const BOOL bWriteBackCache = FALSE );
 
-    const bool ResetFifoThread(const DWORD dwThreadIndex) ;
+    const bool ResetFifoThread(const DWORD dwThreadIndex, bool fPause=false) ;
 
 protected:
 	static bool FifoRecvCallback(u8 *pData, u32 dwLen, u32 dwThreadID);
