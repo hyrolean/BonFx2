@@ -10,11 +10,12 @@
 #include <string>
 #include <set>
 #include "IBonDriver2.h"
+#include "IBonTransponder.h"
 #include "UsbFx2Driver.h"
 
 enum	CLockStatus	{stLock, stLostLock, stNoSignal, stUnknown };
 
-class CBonTuner :	public IBonDriver2,
+class CBonTuner :	public IBonDriver2Transponder,
 			protected IUsbFx2DriverHost
 {
 private:
@@ -85,8 +86,8 @@ private:
 			}
 			return freq ;
 		}
-		bool isISDBT() { return Band==BAND_VU; }
-		bool isISDBS() { return Band==BAND_BS||Band==BAND_ND; }
+		bool isISDBT() const { return Band==BAND_VU; }
+		bool isISDBS() const { return Band==BAND_BS||Band==BAND_ND; }
 		static BAND BandFromFreq(DWORD freq) {
 			if(freq < 60000UL || freq > 2456123UL )
 				return BAND_na ;
@@ -107,9 +108,13 @@ public:
 	int I2CRead(unsigned char adrs,int len,unsigned char *data);
 	int I2CRead(unsigned char adrs,unsigned char reg,int len,unsigned char *data);
 	int I2CRead(unsigned char adrs,unsigned tadrs,unsigned char reg,int len,unsigned char *data);
+    bool	ResetDemod();
 	bool	SetTSID(int tsid);
+    WORD	GetTSID();
 	WORD    SelectTSID(BYTE stream);
+    DWORD   EnumTSID(DWORD *lpTSID, DWORD dwNum);
 	bool	SetISDBTChannel(int ch,DWORD kHz=0);
+    bool	SetISDBSFreq(int ch, DWORD kHz=0);
 	bool	SetISDBSChannel(int ch,WORD stream,WORD tsid,DWORD kHz=0);
 	CLockStatus	IsLockISDBT(void);
 	CLockStatus	IsLockISDBS(void);
@@ -147,6 +152,13 @@ public:
 
 	void Release(void);
 
+// IBonTransponder
+	LPCTSTR TransponderEnumerate(const DWORD dwSpace, const DWORD dwTransponder);
+	const BOOL TransponderSelect(const DWORD dwSpace, const DWORD dwTransponder);
+	const BOOL TransponderGetIDList(LPDWORD lpIDList, LPDWORD lpdwNumID);
+	const BOOL TransponderSetCurID(const DWORD dwID);
+	const BOOL TransponderGetCurID(LPDWORD lpdwID);
+
 	static CBonTuner * m_pThis;
 	static HINSTANCE m_hModule;
 
@@ -182,7 +194,7 @@ protected:
     TCHAR m_szTunerName[100] ;
 
     // É`ÉÉÉìÉlÉãèÓïÒ
-    CHANNELS m_Channels ;
+    CHANNELS m_Channels, m_Transponders ;
     std::vector<DWORD> m_SpaceAnchors ;
     std::vector<DWORD> m_ChannelAnchors ;
     std::vector<std::wstring> m_InvisibleSpaces ;
@@ -191,6 +203,8 @@ protected:
     DWORD space_index_of(DWORD sch) const ;
     DWORD channel_index_of(DWORD sch) const ;
     BOOL is_invalid_space(DWORD spc) const ;
+    int transponder_index_of(DWORD dwSpace, DWORD dwTransponder) const ;
+    void ArrangeChannels(CHANNELS &channels) ;
     void RebuildChannels() ;
 
 	DWORD			m_dwCurSpace;

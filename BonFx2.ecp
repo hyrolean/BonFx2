@@ -136,6 +136,7 @@
             [unified\\IBonDriver.h] {}
             [unified\\IBonDriver2.h] {}
             [unified\\IBonDriver3.h] {}
+            [unified\\IBonTransponder.h] {}
             [unified\\pryutil.cpp] {}
             [unified\\pryutil.h] {}
             [unified\\UsbFx2Driver.cpp] {}

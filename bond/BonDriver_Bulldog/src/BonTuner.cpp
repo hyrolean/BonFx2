@@ -309,9 +309,19 @@ void CBonTuner::CloseTuner()
 
 bool	CBonTuner::SetTSID(int tsid)
 {
-	if(WriteReg(DEMODSADRS, 0x8f, ((tsid >> 8) & 0xff))) return false ;		// MSB of TSID
-	if(WriteReg(DEMODSADRS, 0x90, (tsid & 0xff))) return false ;			// LSB of TSID
+	if(WriteReg(DEMODSADRS, 0x8f, ((tsid >> 8) & 0xff))) return false ;		// MSB of iits
+	if(WriteReg(DEMODSADRS, 0x90, (tsid & 0xff))) return false ;			// LSB of iits
 	return true ;
+}
+
+//*****	Get TSID	*****
+
+WORD	CBonTuner::GetTSID()
+{
+    BYTE data[2] ;
+    int ln=I2CRead(DEMODSADRS, 0xe6,2,data) ; // tsido
+    if(ln!=2) return 0 ;
+    return data[0]<<8 | data[1] ; // big endian
 }
 
 //*****	Select TSID	*****
@@ -328,7 +338,7 @@ WORD  CBonTuner::SelectTSID(BYTE stream/*0-7*/)
 {
     BYTE data[16] ;
     fill_n(data,16,0xFF) ;
-    int ln=I2CRead(DEMODSADRS, 0xCE,16,data) ;
+    int ln=I2CRead(DEMODSADRS, 0xCE,16,data) ; // tsid0 - tsid7
     if(!ln) return 0 ;
     for(int i=0;i+1<ln;i+=2) {
       WORD tsid = data[i+0]<<8 | data[i+1] ; // big endian
@@ -336,6 +346,23 @@ WORD  CBonTuner::SelectTSID(BYTE stream/*0-7*/)
         return tsid ;
     }
     return 0 ;
+}
+
+//*****	Enum TSID	*****
+
+DWORD  CBonTuner::EnumTSID(DWORD *lpTSID, DWORD dwNum)
+{
+    BYTE data[16] ;
+    fill_n(data,16,0xFF) ;
+    int ln=I2CRead(DEMODSADRS, 0xCE,16,data) ;
+    if(!ln) return 0 ;
+    fill_n(lpTSID,dwNum,0xFFFFFFFF) ;
+    DWORD n=0;
+    for(int i=0;n<dwNum&&i+1<ln;i+=2) {
+      WORD tsid = data[i+0]<<8 | data[i+1] ; // big endian
+      lpTSID[n++] = tsid==0 || tsid==0xFFFF ? 0xFFFFFFFF : DWORD(tsid) ;
+    }
+    return n ;
 }
 
 //*****	Set ISDB-T Channel	*****
@@ -364,6 +391,19 @@ bool	CBonTuner::SetISDBTChannel(int ch,DWORD kHz)
 	return tuned ;
 }
 
+bool	CBonTuner::SetISDBSFreq(int ch, DWORD kHz)
+{
+  bool ok=true ;
+  SetStv6110a(ch,kHz);
+  ::HRSleep(30);
+  ok = TC90502_OK==SetTC90502(ISDB_S) ;
+  if(TC90502_OK==SetTC90502(ISDB_S)) {
+    ok = ResetTC90502(ISDB_S) == TC90502_OK ;
+    DBGOUT("SetISDBSFreq: reset DEMOD %s.\n",ok?"done":"failed") ;
+  }
+  return ok;
+}
+
 //*****	Set ISDB-S Channel	*****
 /*
 	ch:トランスポンダ番号
@@ -377,15 +417,8 @@ bool	CBonTuner::SetISDBSChannel(int ch,WORD stream,WORD tsid,DWORD kHz)
 
 	bool tuned = false;
 	for(DWORD i=ISDBSCOMMANDSENDTIMES;i;i--) {
-		bool ok=true ;
-        bool reset=false ;
-        SetStv6110a(ch,kHz);
-        ::HRSleep(30);
-        ok = TC90502_OK==SetTC90502(ISDB_S) ;
-        if(ok) {
-          ok=WriteReg(DEMODSADRS, 0x03, 0x01)?false:true ;  //同期シーケンス開始
-          DBGOUT("SetISDBSChannel: reset DEMOD %s.\n",ok?"done":"failed") ;
-        }
+		bool ok = SetISDBSFreq(ch, kHz) ;
+        //bool reset=false ;
         if(ok) {
           SetTSID(0);
           bool locked = false ;
@@ -410,7 +443,7 @@ bool	CBonTuner::SetISDBSChannel(int ch,WORD stream,WORD tsid,DWORD kHz)
                   break ;
                 }
               }
-              ::HRSleep(40) ;
+              ::HRSleep(0,500) ;
             }
             if(j>1&&tuned)
               ::HRSleep(40) ;
@@ -468,9 +501,12 @@ CLockStatus	CBonTuner::IsLockISDBS(void)
 CLockStatus	CBonTuner::IsLock(void)
 {
 	DWORD ch = GetCurRealChannel() ;
-	if (m_Channels[ch].isISDBT())
+    CHANNEL &channel =
+        m_dwCurChannel & TRANSPONDER_CHMASK ?
+            m_Transponders[ch] : m_Channels[ch] ;
+	if (channel.isISDBT())
 		return(IsLockISDBT());
-	else if (m_Channels[ch].isISDBS())
+	else if (channel.isISDBS())
 		return(IsLockISDBS());
 	return stUnknown ;
 }
@@ -489,7 +525,11 @@ double	CBonTuner::GetCN(void)
 
 	DWORD ch = GetCurRealChannel() ;
 
-	if (m_Channels[ch].isISDBT())														//ISDB-T
+    CHANNEL &channel =
+        m_dwCurChannel & TRANSPONDER_CHMASK ?
+            m_Transponders[ch] : m_Channels[ch] ;
+
+	if (channel.isISDBT())														//ISDB-T
 	{
 		I2CRead(DEMODTADRS,0x8B,3,Data);
 		cndata=(Data[0]<<16) | (Data[1]<<8) | Data[2];
@@ -499,7 +539,7 @@ double	CBonTuner::GetCN(void)
 		p4=p3*p;
 		cn=(double)0.000024*p4-0.0016*p3+0.0398*p2+0.5491*p+3.0965;
 	}
-	else if(m_Channels[ch].isISDBS()) {																	//BS/CS
+	else if(channel.isISDBS()) {																	//BS/CS
 		I2CRead(DEMODSADRS,0xBC,2,Data);
 		cndata=(Data[0]<<8) | Data[1];
 		if (cndata>=3000)
@@ -530,12 +570,16 @@ double	CBonTuner::GetBER(void)
 
 	DWORD ch = GetCurRealChannel() ;
 
-	if (m_Channels[ch].isISDBT())														//ISDB-T
+    CHANNEL &channel =
+        m_dwCurChannel & TRANSPONDER_CHMASK ?
+            m_Transponders[ch] : m_Channels[ch] ;
+
+	if (channel.isISDBT())														//ISDB-T
 	{
 		I2CRead(DEMODTADRS,0xA0,3,darray);
 		I2CRead(DEMODTADRS,0xA6,2,carray);
 	}
-	else if(m_Channels[ch].isISDBS()) {																	//BS/CS
+	else if(channel.isISDBS()) {																	//BS/CS
 		I2CRead(DEMODTADRS+1,0xEB,3,darray);
 		I2CRead(DEMODTADRS+1,0xEE,2,carray);
 	}else {
@@ -557,6 +601,26 @@ void CBonTuner::ResetFxFifo(bool fPause)
 	if(m_pUsbFx2Driver)
 	  m_pUsbFx2Driver->ResetFifoThread(m_dwFifoThreadIndex,fPause) ;
 }
+
+bool CBonTuner::ResetDemod()
+{
+  if(ResetTC90502(fModeTerra?ISDB_T:ISDB_S)!=TC90502_OK) return false;
+  bool locking=false ;
+  for(DWORD e=0,s=Elapsed();CHANNELWAIT>e;e=Elapsed(s)) {
+    HRSleep(40);
+    locking = (fModeTerra?IsLockISDBT():IsLockISDBS())==stLock ;
+    if(locking) break ;
+  }
+  if(!locking) return false ;
+  if(fModeTerra) {
+    SetNuValTC90502(fModeTerra?ISDB_T:ISDB_S,TSDROPNULLPACKETS) ;
+  }else {
+    SetNuValTC90502(ISDB_S,TSDROPNULLPACKETS) ;
+  }
+  HRSleep(40);
+  return true ;
+}
+
 
 //*****	SetRealChannel	*****
 
@@ -601,24 +665,8 @@ const BOOL CBonTuner::SetRealChannel(const DWORD dwCh)
 	  return FALSE ;
 	}
 
-
 	if(tuned) {
-	  ResetTC90502(fModeTerra?ISDB_T:ISDB_S);
-      bool locking=false ;
-	  for(DWORD e=0,s=Elapsed();CHANNELWAIT>e;e=Elapsed(s)) {
-		HRSleep(40);
-	    locking = (fModeTerra?IsLockISDBT():IsLockISDBS())==stLock ;
-		if(locking) break ;
-	  }
-      if(!locking) tuned=false ;
-      else {
-        if(fModeTerra) {
-          SetNuValTC90502(ISDB_T,TSDROPNULLPACKETS) ;
-        }else {
-          SetNuValTC90502(ISDB_S,TSDROPNULLPACKETS) ;
-        }
-		HRSleep(40);
-      }
+	  if(!ResetDemod()) tuned = false ;
 	}
 
 	// Fx側バッファ初期化
@@ -836,15 +884,17 @@ const DWORD CBonTuner::GetCurChannel(void)
 
 DWORD CBonTuner::GetCurRealChannel() const
 {
+
   if(m_dwCurSpace>=m_SpaceAnchors.size())
 	return 0 ; // error
   DWORD start = m_SpaceAnchors[m_dwCurSpace] ;
   DWORD end = m_dwCurSpace + 1 >= m_SpaceAnchors.size() ? (DWORD)m_Channels.size() : m_SpaceAnchors[m_dwCurSpace + 1];
-  DWORD rch = start + m_dwCurChannel ;
+  DWORD rch = start + (m_dwCurChannel & ~TRANSPONDER_CHMASK) ;
   if(rch>=end)
 	return 0 ; // error
   return rch ;
 }
+
 
 //*****	Release	*****
 
@@ -1051,6 +1101,7 @@ bool    CBonTuner::LoadIniFile(std::string strIniFileName)
 bool	CBonTuner::LoadChannelFile(std::string chFName)
 {
   m_Channels.clear() ;
+  m_Transponders.clear() ;
   //m_SpaceIndices.clear() ;
 
   FILE *st=NULL ;
@@ -1133,7 +1184,8 @@ bool	CBonTuner::LoadChannelFile(std::string chFName)
 
 void    CBonTuner::InitChannelToDefault()
 {
-	m_Channels.clear() ;
+    m_Channels.clear() ;
+    m_Transponders.clear() ;
 
 	wstring space; BAND band;
 
@@ -1161,6 +1213,8 @@ void    CBonTuner::InitChannelToDefault()
 			  CHANNEL(space,band,i+100,L"C"+itows(i)+L"ch")) ;
 	}
 
+	copy(m_Channels.begin(), m_Channels.end(), back_inserter(m_Transponders)) ;
+
 	if(DEFSPACEBS) {
 		space = L"BS" ;
 		band = BAND_BS ;
@@ -1181,6 +1235,10 @@ void    CBonTuner::InitChannelToDefault()
 				m_Channels.push_back(
 				  CHANNEL(space,band,i,L"BS"+itows(i))) ;
 		}
+		for(int i=1;	i <= 23;	i+=2)
+		for(int j=0;	j<max(DEFSPACEBSSTREAMS,1);	j++)
+			m_Transponders.push_back(
+				CHANNEL(space,band,i,L"BS"+itows(i))) ;
 	}
 
 	if(DEFSPACECS110) {
@@ -1203,6 +1261,10 @@ void    CBonTuner::InitChannelToDefault()
 				m_Channels.push_back(
 				  CHANNEL(space,band,i,L"ND"+itows(i))) ;
 		}
+		for(int i=2;	i <= 24;	i+=2)
+		for(int j=0;	j<max(DEFSPACECS110STREAMS,1);	j++)
+			m_Transponders.push_back(
+				CHANNEL(space,band,i,L"ND"+itows(i))) ;
 	}
 
 }
@@ -1210,35 +1272,41 @@ void    CBonTuner::InitChannelToDefault()
 
 //*****	Rebuild Channels	*****
 
+  void CBonTuner::ArrangeChannels(CHANNELS &channels) {
+    struct space_finder : public std::unary_function<CHANNEL, bool> {
+      std::wstring space ;
+      space_finder(std::wstring space_) {
+        space = space_ ;
+      }
+      bool operator ()(const CHANNEL &ch) const {
+        return space == ch.Space;
+      }
+    };
+    if (!m_InvisibleSpaces.empty() || !m_SpaceArrangement.empty()) {
+      CHANNELS newChannels ;
+      //CHANNELS oldChannels(channels) ;
+      CHANNELS &oldChannels = channels ;
+      CHANNELS::iterator beg = oldChannels.begin() ;
+      CHANNELS::iterator end = oldChannels.end() ;
+      for (CHANNELS::size_type i = 0; i < m_InvisibleSpaces.size(); i++) {
+        end = remove_if(beg, end, space_finder(m_InvisibleSpaces[i]));
+      }
+      for (CHANNELS::size_type i = 0; i < m_SpaceArrangement.size(); i++) {
+        space_finder finder(m_SpaceArrangement[i]) ;
+        remove_copy_if(beg, end, back_inserter(newChannels), not1(finder)) ;
+        end = remove_if(beg, end, finder) ;
+      }
+      copy(beg, end, back_inserter(newChannels)) ;
+      channels.swap(newChannels) ;
+    }
+  }
+
 void CBonTuner::RebuildChannels()
 {
   // チャンネル並べ替え
-  struct space_finder : public std::unary_function<CHANNEL, bool> {
-	std::wstring space ;
-	space_finder(std::wstring space_) {
-	  space = space_ ;
-	}
-	bool operator ()(const CHANNEL &ch) const {
-	  return space == ch.Space;
-	}
-  };
-  if (!m_InvisibleSpaces.empty() || !m_SpaceArrangement.empty()) {
-	CHANNELS newChannels ;
-	//CHANNELS oldChannels(m_Channels) ;
-	CHANNELS &oldChannels = m_Channels ;
-	CHANNELS::iterator beg = oldChannels.begin() ;
-	CHANNELS::iterator end = oldChannels.end() ;
-	for (CHANNELS::size_type i = 0; i < m_InvisibleSpaces.size(); i++) {
-	  end = remove_if(beg, end, space_finder(m_InvisibleSpaces[i]));
-	}
-	for (CHANNELS::size_type i = 0; i < m_SpaceArrangement.size(); i++) {
-	  space_finder finder(m_SpaceArrangement[i]) ;
-	  remove_copy_if(beg, end, back_inserter(newChannels), not1(finder)) ;
-	  end = remove_if(beg, end, finder) ;
-	}
-	copy(beg, end, back_inserter(newChannels)) ;
-	m_Channels.swap(newChannels) ;
-  }
+  ArrangeChannels(m_Channels);
+  if(!m_Transponders.empty())
+    ArrangeChannels(m_Transponders);
   // チャンネルアンカー構築
   m_SpaceAnchors.clear() ;
   m_ChannelAnchors.clear() ;
@@ -1437,3 +1505,130 @@ int I2CRead(unsigned char adrs,unsigned tadrs,unsigned char reg,int len,unsigned
 {
 	return(CBonTuner::m_pThis->I2CRead(adrs,tadrs,reg,len,data));
 }
+
+	//IBonTransponder
+
+int CBonTuner::transponder_index_of(DWORD dwSpace, DWORD dwTransponder) const
+{
+  if(m_Transponders.empty())
+    return -1 ; // transponder is not entried
+
+  if(m_SpaceAnchors.size()<=dwSpace)
+    return -1 ; // space is over
+
+  size_t si = m_SpaceAnchors[dwSpace] ;
+
+  if(!m_Transponders[si].isISDBS())
+    return -1 ; // transponder is not supported
+
+  size_t tp = 0 , i = si ;
+  for(int ch=m_Transponders[si].Channel; tp<dwTransponder&&i<m_Transponders.size(); i++) {
+    if(m_Transponders[i].Space != m_Transponders[si].Space) break ;
+    if(m_Transponders[i].Channel != ch) {
+      ch = m_Transponders[i].Channel ; tp++;
+      if(tp==dwTransponder) break;
+    }
+  }
+
+  if(tp!=dwTransponder)
+    return -1 ; // transponder is not found
+
+  return (int) i ;
+}
+
+LPCTSTR CBonTuner::TransponderEnumerate(const DWORD dwSpace, const DWORD dwTransponder)
+{
+  int idx = transponder_index_of(dwSpace, dwTransponder) ;
+  if(idx<0) return NULL ;
+
+  return m_Transponders[idx].Name.c_str();
+}
+
+const BOOL CBonTuner::TransponderSelect(const DWORD dwSpace, const DWORD dwTransponder)
+{
+  if(!fOpened) return FALSE;
+
+  int idx = transponder_index_of(dwSpace, dwTransponder) ;
+  if(idx<0) return FALSE ;
+
+  if(fModeTerra) {
+    SetMxl5007(0) ; // Terra Suspend
+    SuspendTC90502(ISDB_T,TRUE);
+    SuspendTC90502(ISDB_S,FALSE);
+    HRSleep(40);
+    fModeTerra = false ;
+  }
+
+  BOOL res = SetISDBSFreq(
+      m_Transponders[idx].Channel,
+      m_Transponders[idx].Freq ) ? TRUE:FALSE ;
+
+  if(res) {
+    m_dwCurSpace = dwSpace;
+    m_dwCurChannel = dwTransponder | TRANSPONDER_CHMASK ;
+    is_channel_valid = FALSE; // TransponderSetCurID はまだ行っていないので
+  }
+
+  return res ;
+}
+
+const BOOL CBonTuner::TransponderGetIDList(LPDWORD lpIDList, LPDWORD lpdwNumID)
+{
+  if(!fOpened||fModeTerra) return FALSE;
+
+  const DWORD numId = 8 ;
+
+  if(lpdwNumID==NULL) {
+    return FALSE ;
+  }else if(lpIDList==NULL) {
+    *lpdwNumID = numId ;
+    return TRUE ;
+  }
+
+  *lpdwNumID = EnumTSID(lpIDList, *lpdwNumID) ;
+
+  return TRUE ;
+}
+
+const BOOL CBonTuner::TransponderSetCurID(const DWORD dwID)
+{
+  if(!fOpened||fModeTerra) return FALSE;
+
+  is_channel_valid = FALSE ;
+
+  // Fx側バッファ停止
+  ResetFxFifo(true) ;
+  // 撮り溜めたTSストリームの破棄
+  PurgeTsStream();
+
+  BOOL res = FALSE ;
+  if(SetTSID(int(dwID&0xFFFF))) {
+    if(ResetDemod()) res = TRUE ;
+  }
+
+  // Fx側バッファ初期化
+  ResetFxFifo(false) ;
+
+  if(res) is_channel_valid = res ? TRUE : FALSE ;
+
+  return res ;
+}
+
+const BOOL CBonTuner::TransponderGetCurID(LPDWORD lpdwID)
+{
+  if(!fOpened||fModeTerra) return FALSE;
+
+  if(!is_channel_valid) {
+    *lpdwID=0xFFFFFFFF;
+    return TRUE;
+  }
+
+  WORD id = GetTSID() ;
+  if(id!=0 && id!=0xFFFF)
+    *lpdwID = DWORD(id) ;
+  else
+    *lpdwID = 0xFFFFFFFF ;
+
+  return TRUE;
+}
+

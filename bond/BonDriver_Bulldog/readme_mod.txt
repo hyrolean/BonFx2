@@ -1,4 +1,4 @@
-Bulldog チューナー用 BonDriver 改変MODソース @ 2022/4/23
+Bulldog チューナー用 BonDriver 改変MODソース @ 2022/4/27
 
   以下の2ファイルを BonDriver_Bulldog.dll と同じ場所において使用する。
 
@@ -25,6 +25,7 @@ Bulldog チューナー用 BonDriver 改変MODソース @ 2022/4/23
 
 2021/11/27 からの修正内容
 
+    ・IBonTransponderインターフェイスに対応
     ・ヌルパケットをストリームから除くかどうかを決定する TSDropNullPackets 項目
       を .ini に追加
 
