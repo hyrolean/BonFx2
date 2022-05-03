@@ -1,4 +1,4 @@
-; BonDriver_Bulldog 用 チャンネルファイル簡易表記版 (2022/4/27)
+; BonDriver_Bulldog 用 チャンネルファイル簡易表記版 (2022/5/3)
 ;
 ;       チャンネル情報を変更する場合は、このファイルを編集して
 ;       プレフィックスが同じ名前のドライバと同ディレクトリに
@@ -145,6 +145,7 @@ CATV,C62
 
   ; BS
 
+; -*- auto generated BS channels -*-
 BS, BS1/TS0 ;ＢＳ朝日１
 BS, BS1/TS1 ;ＢＳ－ＴＢＳ
 BS, BS1/TS2 ;ＢＳテレ東
@@ -177,6 +178,7 @@ BS, BS23/TS3 ;ＢＳ松竹東急
 
   ; CS110
 
+; -*- auto generated CS110 channels -*-
 CS110, ND2
 CS110, ND4
 CS110, ND6

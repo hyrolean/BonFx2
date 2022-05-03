@@ -23,11 +23,15 @@
               <Priority> 0
               [files] {
                 [bond\\BonDriver_Bulldog\\BonDriver_Bulldog.ch - BSAlmighty.txt] {}
-                [bond\\BonDriver_Bulldog\\BonDriver_Bulldog.ch - MHz.txt] {}
+                [bond\\BonDriver_Bulldog\\BonDriver_Bulldog.ch - MHz.txt] {
+                  <FileTag> "BULLDOG_CHFILE_MHZ"
+                }
                 [bond\\BonDriver_Bulldog\\BonDriver_Bulldog.ch - TSID.txt] {
                   <FileTag> "BULLDOG_CHFILE_TSID"
                 }
-                [bond\\BonDriver_Bulldog\\BonDriver_Bulldog.ch.txt] {}
+                [bond\\BonDriver_Bulldog\\BonDriver_Bulldog.ch.txt] {
+                  <FileTag> "BULLDOG_CHFILE"
+                }
                 [bond\\BonDriver_Bulldog\\BonDriver_Bulldog.ini] {}
                 [bond\\BonDriver_Bulldog\\readme_mod.txt] {}
               }

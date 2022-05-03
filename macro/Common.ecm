@@ -5,11 +5,17 @@ uses Reserved ;
 @global
 
 // IN: PT-1/2 サテライトのチャンネルファイル(PT1-PT2-Sample-200改でスキャンしたもの)
-const PT_S_CHFILE = R"^(\\HESTIA\BonDriver\BonDriver_PT-S.ChSet.txt)^" ;
+const PT_S_CHFILE =
+	// R"^(\\HESTIA\BonDriver\unused\BonDriver_PT-S.ChSet.txt)^" ;
+	R"^(C:\Software Files\Application\TV\Bon\Spinel\Spinel3\BonDriver\unused\BonDriver_PTx-S0.ChSet.txt)^" ;
 // IN: サテライト情報が入っているTVTestのスキャン済チャンネルファイル(サテライト情報が入っていればなんでも可)
-const PT_S_CH2FILE = R"^(C:\Software Files\Application\TV\Bon\TVTest\BonDriver\BonDriver_RDCT_Spinel_PT-TS.ch2)^" ;
+const PT_S_CH2FILE =
+	// R"^(V:\Test\FastScan\TVTest_x64\BonDriver\BonDriver_RDCT_Spinel_PT-TS.ch2)^" ;
+	R"^(C:\Software Files\Application\TV\Bon\TVTest_x64\BonDriver\BonDriver_RDCT_Spinel_PT-TS.ch2)^" ;
 // OUT: AKB-PCR-20X のチャンネルファイル
-const BULLDOG_CHFILE = R"^(%FILETAG:BULLDOG_CHFILE_TSID%)^" ;
+const BULLDOG_CHFILE      = R"^(%FILETAG:BULLDOG_CHFILE%)^"      ;
+const BULLDOG_CHFILE_TSID = R"^(%FILETAG:BULLDOG_CHFILE_TSID%)^" ;
+const BULLDOG_CHFILE_MHZ  = R"^(%FILETAG:BULLDOG_CHFILE_MHZ%)^"  ;
 // OUT: UNIDEN DT-300 のチャンネルファイル
 const DT300_CHFILE = R"^(%FILETAG:DT300_CHFILE%)^" ;
 
