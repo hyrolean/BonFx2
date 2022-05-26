@@ -1563,6 +1563,8 @@ const BOOL CBonTuner::TransponderSelect(const DWORD dwSpace, const DWORD dwTrans
       m_Transponders[idx].Channel,
       m_Transponders[idx].Freq ) ? TRUE:FALSE ;
 
+  if(res&&!ResetDemod()) res = FALSE;
+
   if(res) {
     m_dwCurSpace = dwSpace;
     m_dwCurChannel = dwTransponder | TRANSPONDER_CHMASK ;
@@ -1602,14 +1604,32 @@ const BOOL CBonTuner::TransponderSetCurID(const DWORD dwID)
   PurgeTsStream();
 
   BOOL res = FALSE ;
-  if(SetTSID(int(dwID&0xFFFF))) {
-    if(ResetDemod()) res = TRUE ;
+
+  bool locked = false, tuned=false;
+  SetTSID(0);
+  for(DWORD j=ISDBSSETTSIDTIMES;j;j--) {
+    for(DWORD e=0,s=Elapsed();ISDBSSETTSIDWAIT>e;e=Elapsed(s)) {
+      if(!locked) {
+        locked = IsLockISDBS()==stLock ;
+        if(locked) {
+          ::HRSleep(ISDBSSETTSLOCKWAIT) ;
+        }
+      }else if(SetTSID(int(dwID&0xFFFF))) {
+        tuned = true ;
+        break ;
+      }
+      ::HRSleep(0,500) ;
+    }
+    if(j>1&&tuned)
+      ::HRSleep(40) ;
   }
+
+  if(tuned) res = TRUE ;
 
   // Fx側バッファ初期化
   ResetFxFifo(false) ;
 
-  if(res) is_channel_valid = res ? TRUE : FALSE ;
+  if(res) is_channel_valid = TRUE ;
 
   return res ;
 }
