@@ -103,6 +103,9 @@ DWORD BUTTONPOWERWAIT    = 4100 ;
 DWORD BUTTONPOWEROFFDELAY= 0 ;
 BOOL REDUCESPACECHANGE   = TRUE ;
 
+// チャンネル切替時にメインスレッドの優先度を極限まで上げておくかどうか
+BOOL TIMECRITICALTUNING  = FALSE ;
+
 // 高精度割込タイマー
 BOOL USEMMTIMER = TRUE ; // マルチメディアタイマー使用有無
 BOOL USEHRTIMER = FALSE ; // ハイレゾリューションタイマー使用有無
@@ -207,14 +210,23 @@ extern "C" __declspec(dllexport) IBonDriver * CreateBonDriver()
     class mm_interval_lock {
         static int refCnt;
         DWORD period_;
+        int bkPrior_;
     public:
         mm_interval_lock(DWORD period) : period_(period) {
-            if(USEMMTIMER&&!refCnt) timeBeginPeriod(period_);
-            refCnt++;
+            if(!refCnt++) {
+              if(USEMMTIMER) timeBeginPeriod(period_);
+              if(TIMECRITICALTUNING) {
+                bkPrior_ = GetThreadPriority(GetCurrentThread());
+                SetThreadPriority(GetCurrentThread(),THREAD_PRIORITY_TIME_CRITICAL);
+              }
+            }
         }
         ~mm_interval_lock() {
-            --refCnt;
-            if(USEMMTIMER&&!refCnt) timeEndPeriod(period_);
+            if(!--refCnt) {
+              if(USEMMTIMER) timeEndPeriod(period_);
+              if(TIMECRITICALTUNING)
+                SetThreadPriority(GetCurrentThread(),bkPrior_);
+            }
         }
     };
     int mm_interval_lock::refCnt=0;
@@ -845,6 +857,7 @@ bool CBonTuner::LoadIniFile(string strIniFileName)
   LOADINT(BUTTONPOWERWAIT) ;
   LOADINT(BUTTONPOWEROFFDELAY) ;
   LOADINT(REDUCESPACECHANGE) ;
+  LOADINT(TIMECRITICALTUNING) ;
   LOADINT(USEMMTIMER) ;
   LOADINT(USEHRTIMER) ;
   #undef LOADINT

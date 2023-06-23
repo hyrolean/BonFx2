@@ -1,0 +1,407 @@
+unit AMTMvConverted;
+uses Reserved;
+
+// Amatsukaze コンバート結果の動画を複数の候補の中から最良なものを自動的にチョイスして DestPath に移動して仕分けする.
+
+const TestMode = true ; // 動作をテストしてシミュレートするモード. 実際の動画の仕分けは行われない.
+const TestMove = true ; // 移動のテストを行うモード. 選出候補は DestPath ではなく,動画直下のtestフォルダに仮移動される.
+
+// 注意:: TestMode=false, TestMove=false の本番モードでは,やり直しが利きません.
+//        事前に動画のバックアップを採っておくことを強くお勧めします.
+
+// IN: コンバートされた動画のソース候補群の所在
+const SrcPaths[] = str {
+  R"^(Z:\Recording\VCR\ConvertedCPU\)^",  // CPU でエンコードされたソース
+  R"^(Z:\Recording\VCR\ConvertedQSV\)^",  // QSVEnc でエンコードされたソース
+  R"^(Z:\Recording\VCR\ConvertedVCE\)^",  // VCEEnc でエンコードされたソース
+  R"^(Z:\Recording\VCR\ConvertedNV\)^"    // NVEnc でエンコードされたソース
+};
+
+// OUT: コンバートされた動画の候補の中から選りすぐって仕分けした候補の移動先
+const DestPath = R"^(Z:\Recording\VCR\Converted\)^" ;
+
+// REF: 普段メインストリームとして視聴用に使っているフォルダのパス
+//      仕分け結果とダブった動画があれば,自動的にtrashに移動される
+//      ちなみに,このパスが空 "" の場合は何も行われない
+const OrgPath  = R"^(X:\Recording\VCR\Converted\)^" ;
+//const OrgPath  = "" ;
+
+// 操作の対象とする動画のワイルドカード一覧
+const TargetWildCards[] = str {
+  //"*.ts",
+  "*.mkv",
+  "*.mp4"
+};
+
+// 動画ファイル移動時に連動して一緒に移動させるファイル群の拡張子一覧
+const FellowExts[] = str {
+  "-enc.log",
+  ".ts.err",
+  ".ts.program.txt",
+  ".ass"
+};
+
+// ソース仕分け用Mapオブジェクト
+dim SrcMap as use<Map<str,use<AMTFileCandi>>>;
+
+function EntryFiles(path as str, mask as str) as int
+{
+  dim cnt = 0 ;
+  dim hFind = FindFirst(path+mask,faArchive|faReadOnly);
+  if(hFind!=NULL) {
+    do {
+      dim name = FoundName(hFind);
+      dim prefix = ChangeFileExt(name,"");
+      dim filename = path + name;
+      dim elem = SrcMap.Items[prefix] ;
+      elem.AddWithAttr(filename,FoundAttr(hFind),FoundSize(hFind));
+      //OutputMessage(R"(  + ファイル "%s" を候補に追加しました。)"%filename);
+      cnt++;
+    }while(FindNext(hFind));
+    FindClose(hFind);
+  }
+  return cnt ;
+}
+
+function MoveFileWithAttr(source as str, dest as str) as int
+{
+  dim attr = FileGetAttr(source);
+  FileSetAttr(source,faArchive);
+  dim r = MoveFile(source,dest);
+  if(!r)
+    FileSetAttr(source,attr);
+  else
+    FileSetAttr(dest,attr);
+  return r;
+}
+
+function DoMoveConverted(source as str, dest as str) as int
+{
+  dim r = true ;
+  if(!TestMode) r=MoveFileWithAttr(source,dest) ;
+  if(!r) {
+     MessageBox("ファイルの移動に失敗しました。\n 失敗ファイル: 『%s』"%source, "ファイル移動失敗", MB_OK|MB_ICONSTOP);
+     AppendMessage("  <移動失敗> %s -> %s" % source % dest);
+     return r;
+  }
+  AppendMessage("  <移動> %s -> %s" % source % dest);
+  foreach(dim fext : FellowExts) {
+    dim fsource = ChangeFileExt(source,fext) ;
+    if(FileExists(fsource)) {
+      dim fdest = ChangeFileExt(dest,fext) ;
+      if(!TestMode) r=MoveFileWithAttr(fsource,fdest) ;
+      if(!r) {
+         MessageBox("ファイルの移動に失敗しました。\n 失敗ファイル: 『%s』"%fsource, "ファイル移動失敗", MB_OK|MB_ICONSTOP);
+         AppendMessage("   <移動失敗> %s -> %s" % fsource % fdest);
+         return r;
+      }
+      AppendMessage("   <移動> %s -> %s" % fsource % fdest);
+    }
+  }
+  return r;
+}
+
+@global
+
+function DoMvConvertedAction()
+{
+  dim Canceled = false ;
+
+  ClearMessage();
+  SetMessageHint("Converted仕分け");
+  SrcMap.Clear();
+
+  dim DestDir = ExtractFileDir(DestPath) ;
+  if(!DirectoryExists(DestDir)) {
+    OutputMessage("エラー: 出力ディレクトリ \"%s\" が見つかりません. 設定を見直してみてください."%DestDir);
+    Canceled=true;
+  }
+
+  //---- 列挙 ----
+  if(!Canceled) {
+    OutputMessage("■候補の列挙");
+    ProcessMessages();
+    foreach(dim path : SrcPaths) {
+      OutputMessage(R"( パス: "%s")"%path);
+      ProcessMessages();
+      dim cnt=0;
+      foreach(dim wcard : TargetWildCards) {
+        cnt += EntryFiles(path,wcard) ;
+        if(!TestMove)
+          cnt += EntryFiles(path+"test\\",wcard) ;
+      }
+      OutputMessage(" - 計 %d 個のファイルを追加しました."%cnt);
+      ProcessMessages();
+    }
+    OutputMessage("");
+  }
+  //---- 査定 ----
+  if(!Canceled) {
+    OutputMessage("■候補の査定");
+    ProcessMessages();
+    {
+      dim prog as use<Progressor> ;
+      prog.Title = "候補の査定";
+      prog.Caption = "";
+      OutputMessage(" - 候補の数: %d" % SrcMap.Count);
+      prog.Max = SrcMap.Count ;
+      prog.Show();
+      dim cnt = 0 ;
+      for(dim pos = SrcMap.IterItems() ; pos.IsValid ; pos.Next()) {
+        dim name = pos.Key ;
+        dim candi = pos.Value ;
+        prog.Caption = name ;
+        ProcessMessages();
+        if(prog.IsCanceled)  {
+          Canceled = true ;
+          break ;
+        }
+        AppendMessage(" "+name);
+        candi.Analyze();
+        candi.Elect();
+        for(dim i=0,n=candi.Count;i<n;i++) {
+          dim info = candi.Candidates[i] ;
+          dim ss,mm as int ;
+          ss = info.Seconds() ;
+          mm = ss / 60 ; ss %= 60 ;
+          dim appendStr = "  %d) %s <%02d:%02d>" % (i+1) % info.Path % mm % ss ;
+          if(info.Size>0) appendStr += " %d." % info.Size ;
+          if(info.DropCount>0) appendStr += " drop(%d)" % info.DropCount ;
+          if(info.ScrambleCount>0) appendStr += " scramble(%d)" % info.ScrambleCount ;
+          if(info.Elected) appendStr += " *";
+          AppendMessage(appendStr);
+        }
+        cnt++;
+        prog.IncPos();
+      }
+      prog.Hide();
+      OutputMessage(" - 計 %d 個の候補を査定しました."%cnt);
+      ProcessMessages();
+    }
+    OutputMessage("");
+  }
+  //---- オリジナル視聴済検査 ----
+  dim ViewedNames as str [] ;
+  dim RdOnlyNames as str [] ;
+  if(!Canceled) {
+    OutputMessage("■オリジナル視聴済検査");
+    ProcessMessages();
+    {
+      dim prog as use<Progressor> ;
+      prog.Title = "オリジナル視聴済検査";
+      prog.Caption = "";
+      prog.Max = SrcMap.Count ;
+      prog.Show();
+      dim vcnt = 0, rcnt = 0 ;
+      for(dim pos = SrcMap.IterItems() ; pos.IsValid ; pos.Next()) {
+        dim name = pos.Key ;
+        dim candi = pos.Value ;
+        dim viewed_set as use<Set<str>>;
+        dim rdonly_set as use<Set<str>>;
+        for(dim i=0,n=candi.Count;i<n;i++) {
+          dim info = candi.Candidates[i] ;
+          dim fname = ExtractFileName(info.Path) ;
+          if(OrgPath!="") {
+            dim orgFileName = OrgPath + fname;
+            prog.Caption = name ;
+            if(FileExists(orgFileName)) {
+              dim attr = FileGetAttr(orgFileName);
+              if(!(attr & faArchive)) {
+                AppendMessage("  <視聴済> %s"%orgFileName);
+                candi.SetForceViewed(true);
+                viewed_set.Insert(fname);
+              }
+              if(attr & faReadOnly) {
+                AppendMessage("  <読取専用> %s"%orgFileName);
+                candi.SetForceRdOnly(true);
+                rdonly_set.Insert(fname);
+              }
+            }
+          }
+          if(info.Viewed) viewed_set.Insert(fname);
+          if(info.RdOnly) rdonly_set.Insert(fname);
+        }
+        for(dim v = viewed_set.IterValues() ; v.IsValid ; v.Next())
+          pushto(ViewedNames, v.Value);
+        for(dim r = rdonly_set.IterValues() ; r.IsValid ; r.Next())
+          pushto(RdOnlyNames, r.Value);
+        vcnt+=viewed_set.Count;
+        rcnt+=rdonly_set.Count;
+        ProcessMessages();
+        if(prog.IsCanceled)  {
+          Canceled = true ;
+          break ;
+        }
+        prog.IncPos();
+      }
+      prog.Hide();
+      if(TestMove) {
+        dim uuid = CreateUuidString() ;
+        if(countof(RdOnlyNames)>0) {
+          TabNewFile("読取専用リスト{%s}.rdonly.txt"%uuid,true);
+          SetSelText(StringsToText(RdOnlyNames)+"\r\n");
+        }
+        if(countof(ViewedNames)>0) {
+          TabNewFile("視聴済リスト{%s}.viewed.txt"%uuid,true);
+          SetSelText(StringsToText(ViewedNames)+"\r\n");
+        }
+      }
+      OutputMessage(" - 計 %d 個のオリジナル視聴済を検出しました."%vcnt);
+      OutputMessage(" - 計 %d 個のオリジナル読取専用を検出しました."%rcnt);
+    }
+    OutputMessage("");
+  }
+  //---- 不要候補のTrash ----
+  if(!Canceled) {
+    if(TestMode)
+      OutputMessage("■不要候補のTrash(テストモード)");
+    else
+      OutputMessage("■不要候補のTrash");
+    {
+      dim prog as use<Progressor> ;
+      if(TestMode)
+        prog.Title = "不要候補のTrash(テストモード)";
+      else {
+        prog.Title = "不要候補のTrash";
+        //trashフォルダを作成
+        foreach(dim path : SrcPaths) {
+          CreateDir(path+"trash");
+        }
+        CreateDir(OrgPath+"trash");
+      }
+      prog.Caption = "";
+      prog.Max = SrcMap.Count ;
+      prog.Show();
+      dim cnt = 0 ;
+      for(dim pos = SrcMap.IterItems() ; pos.IsValid ; pos.Next()) {
+        dim name = pos.Key ;
+        dim candi = pos.Value ;
+        prog.Caption = name ;
+        ProcessMessages();
+        if(prog.IsCanceled)  {
+          Canceled = true ;
+          break ;
+        }
+        AppendMessage(" "+name);
+        for(dim i=0,n=candi.Count;i<n;i++) {
+          dim info = candi.Candidates[i] ;
+          dim fname = ExtractFileName(info.Path);
+          if(!info.Elected&&info.Size>=0) {
+            dim trash = ExtractFilePath(info.Path)+"trash\\"+fname;
+            dim r = DoMoveConverted(info.Path,trash);
+            if(!r) {Canceled=true;break;}
+            cnt++;
+          }
+          if(!TestMove&&OrgPath!="") {
+            dim orgFileName = OrgPath+fname ;
+            if(FileExists(orgFileName)) {
+              dim trash = OrgPath+"trash\\"+fname;
+              dim r = DoMoveConverted(orgFileName,trash);
+              if(!r) {Canceled=true;break;}
+              cnt++;
+            }
+          }
+        }
+        if(Canceled) break;
+        prog.IncPos();
+      }
+      if(TestMode)
+        OutputMessage(" - 計 %d 個の不要候補のTrashをシミュレートしました."%cnt);
+      else
+        OutputMessage(" - 計 %d 個の不要候補をTrashしました."%cnt);
+    }
+    OutputMessage("");
+  }
+  //---- 選出候補の移動 ----
+  if(!Canceled) {
+    if(TestMode)
+      OutputMessage("■選出候補の移動(テストモード)");
+    else
+      OutputMessage("■選出候補の移動");
+    {
+      dim prog as use<Progressor> ;
+      if(TestMode)
+        prog.Title = "選出候補の移動(テストモード)";
+      else {
+        prog.Title = "選出候補の移動";
+        if(TestMove) {
+          // テスト移動 testフォルダを作成
+          foreach(dim path : SrcPaths) {
+            CreateDir(path+"test");
+          }
+        }else {
+          // 本番 視聴済/読取専用リストを事前作成しておく
+          dim yy,mm,dd,HH,MM,SS,MSEC as int;
+          GetCurrentDateTime(yy, mm, dd, HH, MM, SS, MSEC) ;
+          if(countof(ViewedNames)>0) {
+            dim vpath = DestPath + "視聴済リスト@%d%02d%02d%02d%02d%02d.viewed.txt" %yy%mm%dd%HH%MM%SS;
+            SaveStringsToFile(ViewedNames,vpath);
+          }
+          if(countof(RdOnlyNames)>0) {
+            dim vpath = DestPath + "読取専用リスト@%d%02d%02d%02d%02d%02d.rdonly.txt" %yy%mm%dd%HH%MM%SS;
+            SaveStringsToFile(RdOnlyNames,vpath);
+          }
+        }
+      }
+      prog.Caption = "";
+      prog.Max = SrcMap.Count ;
+      prog.Show();
+      dim cnt = 0 ;
+      for(dim pos = SrcMap.IterItems() ; pos.IsValid ; pos.Next()) {
+        dim name = pos.Key ;
+        dim candi = pos.Value ;
+        prog.Caption = name ;
+        ProcessMessages();
+        if(prog.IsCanceled)  {
+          Canceled = true ;
+          break ;
+        }
+        AppendMessage(" "+name);
+        dim elected = -1 ;
+        for(dim i=0,n=candi.Count;i<n;i++) {
+          dim info = candi.Candidates[i] ;
+          if(info.Elected) {
+            elected = i ;
+            break;
+          }
+        }
+        if(elected>=0) {
+          dim info = candi.Candidates[elected] ;
+          dim source = info.Path ;
+          dim fname = ExtractFileName(info.Path);
+          dim attr = FileGetAttr(source);
+          dim dest = (!TestMove ? DestPath : ExtractFilePath(info.Path)+"test\\") + fname ;
+          dim r = DoMoveConverted(source,dest) ;
+          if(!r) {
+             Canceled = true;
+             break;
+          }
+          if(!TestMode) {
+            if(candi.Viewed) {
+              attr &= ~faArchive ;
+            }else
+              attr |= faArchive ;
+            FileSetAttr(dest,attr);
+          }
+          cnt++;
+        }
+        prog.IncPos();
+      }
+      if(TestMode)
+        OutputMessage(" - 計 %d 個の選出候補の移動をシミュレートしました."%cnt);
+      else
+        OutputMessage(" - 計 %d 個の選出候補を移動しました."%cnt);
+    }
+    OutputMessage("");
+  }
+  //---- 完了 ----
+  if(Canceled)
+    OutputMessage("仕分け完了(キャンセルされました).");
+  else
+    OutputMessage("仕分け完了.");
+  HistoryMessage();
+  SrcMap.Clear();
+  MessageBeep(MB_ICONINFORMATION);
+  return;
+}
+

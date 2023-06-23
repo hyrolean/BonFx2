@@ -1,0 +1,86 @@
+unit AMTAttrReflect;
+uses Reserved;
+
+function DoAction(Title as str, Filter as str, Attr as int, Inverse as int)
+{
+  dim FileName = FileOpenBox(Title, Filter);
+  if(FileName=="") return;
+  dim list as str [];
+  if(!LoadStringsFromFile(list,FileName)) {
+    MessageBox("ファイル『%s』は、開けません。"% FileName,Title,MB_ICONSTOP|MB_OK);
+    return;
+  }
+
+  ClearMessage();
+  SetMessageHint(Title);
+  OutputMessage("■%s"%Title);
+  dim prog as use<Progressor> ;
+  prog.Title = Title;
+  prog.Caption = "";
+  OutputMessage(" - 候補の数: %d" % countof(list));
+  prog.Max = countof(list) ;
+  prog.Show();
+
+  dim Canceled = false ;
+
+  dim path = ExtractFilePath(FileName);
+  dim cnt = 0;
+  foreach(dim name : list) {
+    prog.Caption=name;
+    ProcessMessages();
+    if(prog.IsCanceled) {
+      Canceled = true ;
+      break;
+    }
+    AppendMessage(" "+name);
+    dim fname = path + name ;
+    if(FileExists(fname)) {
+      dim fattr=FileGetAttr(fname);
+      if(fattr==faInvalid) {
+        AppendMessage("   <属性取得失敗> "+fname) ;
+      }else {
+        if(Inverse) fattr &= ~Attr ;
+        else        fattr |= Attr ;
+        dim errno = FileSetAttr(fname,fattr) ;
+        if(errno==0) {
+          AppendMessage("   <属性適用成功> "+fname) ;
+          cnt++;
+        }else {
+          AppendMessage("   <属性適用失敗[code:%d]> "%errno+fname) ;
+        }
+      }
+    }else {
+      AppendMessage("   <ファイルが存在しない> "+fname) ;
+    }
+    prog.IncPos();
+  }
+
+  OutputMessage(" - 計 %d 個のファイルの属性を適用しました."%cnt);
+  prog.Hide();
+
+  if(Canceled)
+    OutputMessage("%s完了(キャンセルされました)."%Title);
+  else
+    OutputMessage("%s完了."%Title);
+  HistoryMessage();
+}
+
+
+@global
+
+function DoReflectViewedAction()
+{
+  DoAction(
+    "視聴済属性の再反映",
+    "視聴済リスト(*.viewed.txt)|*.viewed.txt",faArchive,true);
+  return;
+}
+
+function DoReflectRdOnlyAction()
+{
+  DoAction(
+    "読取専用属性の再反映",
+    "読取専用リスト(*.rdonly.txt)|*.rdonly.txt",faReadOnly,false);
+  return;
+}
+

@@ -123,7 +123,28 @@
               <MacroControl> y
             }
           }
-          [nodes] {}
+          [nodes] {
+            [AMT] {
+              <ReadOnly> n
+              <AbsolutePath> n
+              <Priority> 0
+              [files] {
+                [macro\\AMT\\AMTAttrReflect.ecm] {
+                  <MacroControl> y
+                }
+                [macro\\AMT\\AMTFileInfo.ecm] {
+                  <MacroControl> y
+                }
+                [macro\\AMT\\AMTMenu.ecm] {
+                  <MacroControl> y
+                }
+                [macro\\AMT\\AMTMvConverted.ecm] {
+                  <MacroControl> y
+                }
+              }
+              [nodes] {}
+            }
+          }
         }
         [unified] {
           <ReadOnly> n
@@ -190,7 +211,9 @@
     <Ruby.AdditionalKeywords> ""
     <XML.AdditionalKeywords> ""
     <テキスト.AdditionalKeywords> ""
-    <常用マクロ.AdditionalKeywords> ""
+    <常用マクロ.AdditionalKeywords>
+      "false\r\n"
+      "true\r\n"
     <TagJumpList>
       "%[^(](%d):%*s\r\n"
     <SourcePath> "%PROJECT_DIR%"

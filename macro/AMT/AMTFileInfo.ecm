@@ -1,0 +1,241 @@
+unit AMTFileInfo(/*obj*/);
+uses Reserved;
+
+  friends AMTFileCandi;
+
+@global
+
+  dim Path as str;
+  dim Size as int;
+  dim Viewed as int;
+  dim RdOnly as int;
+  dim Frames as int;
+  dim FPS as flt;
+  dim DropCount as int;
+  dim ScrambleCount as int;
+
+  dim Elected as int;
+
+  function Seconds() as int {
+    if(FPS>0.0) {
+      return int ( flt(Frames)/FPS );
+    }
+    return 0;
+  }
+
+@local
+
+  function Analyze() {
+    // DONE : ファイル解析処理
+    // -enc.log 解析
+    dim encLogFileName = ChangeFileExt(Path,"-enc.log") ;
+    if(FileExists(encLogFileName)) {
+      dim logs as str [] ;
+      LoadStringsFromFile(logs,encLogFileName);
+      dim header = "AMT [info] フィルタ出力: " ;
+      foreach_reverse(dim log : logs) {
+        if(AnsiStrPos(log,header)==0) {
+          dim text = log ;
+          delfrom(text,0,countof(header));
+          /*
+          Frames = StrToInt(SubStr(text,0,AnsiStrPos(text,"フレーム")));
+          delfrom(text,0,AnsiStrScan(text,' ')+1);
+          dim scale = flt(StrToInt(SubStr(text,0,AnsiStrScan(text,'/')))) ;
+          delfrom(text,0,AnsiStrScan(text,'/')+1);
+          dim denom = flt(StrToInt(SubStr(text,0,AnsiStrPos(text,"fps")))) ;
+          FPS = scale/denom;
+          break;
+          */
+          dim pattern   = R"@(^([0-9]+)[^ ]+ ([0-9]+)/([0-9]+)fps.*$)@" ;
+          dim subst     = R"@($1,$2,$3,)@" ;
+          dim modifier  = "k" ;
+          if(BSubst(pattern,modifier,subst,text)>0) {
+            dim params as str [];
+            if(BSplit(",",modifier,text,params)>0) {
+              Frames = int(params[0]);
+              dim scale = flt(params[1]) ;
+              dim denom = flt(params[2]) ;
+              FPS = scale/denom;
+            }
+            break;
+          }
+        }
+      }
+    }
+    // .ts.err 解析
+    dim tsErrFileName = ChangeFileExt(Path,".ts.err") ;
+    if(FileExists(tsErrFileName)) {
+      dim logs as str [] ;
+      LoadStringsFromFile(logs,tsErrFileName);
+      dim drops = 0, scrambles = 0;
+      dim pattern = R"@(^PID: +(0x[0-9A-Fa-f]+) +Total: *([0-9]+) +Drop: *([0-9]+) +Scramble: *([0-9]+) +(.*)$)@" ;
+      dim subst = R"@($1,$2,$3,$4,$5,)@" ;
+      dim modifier = "k" ;
+      foreach_reverse(dim log : logs) {
+        dim text = log ;
+        if(BSubst(pattern,modifier,subst,text)>0) {
+          dim params as str [];
+          if(BSplit(",",modifier,text,params)>0) {
+            dim pid = int(params[0]);
+            dim total = int(params[1]);
+            dim drop = int(params[2]);
+            dim scramble = int(params[3]);
+            dim caption = params[4];
+            if(pid>=0x110) { // PID0x110以上の主要部分の情報だけを計上
+              drops+=drop;
+              scrambles+=scramble;
+            }else break;
+          }
+        }
+      }
+      DropCount = drops ;
+      ScrambleCount = scrambles ;
+    }
+  }
+
+@end
+
+unit AMTFileCandi(/*obj*/);
+uses Reserved;
+
+  dim Files as use<AMTFileInfo> [] ;
+  dim ForceViewed as int ;
+  dim ForceRdOnly as int ;
+
+  function GetName() as str {
+    if(countof(Files)>0)
+      return ExtractFileName(Files[0].Path);
+    return "";
+  }
+
+  function GetViewed()  as int {
+    if(ForceViewed) return true ;
+    foreach(dim file : Files) {
+      if(file.Viewed)
+        return true;
+    }
+    return false;
+  }
+
+  function GetRdOnly() as int {
+    if(ForceRdOnly) return true ;
+    foreach(dim file : Files) {
+      if(file.RdOnly)
+        return true;
+    }
+    return false;
+  }
+
+  function GetCandidates(Index as int) as use<AMTFileInfo> {
+    return Files[Index];
+  }
+
+  function GetCount() as int {
+    return countof(Files);
+  }
+
+@global
+
+  property Name as str read GetName;
+  property Viewed as int read GetViewed;
+  property RdOnly as int read GetRdOnly;
+  property Candidates[Index as int] as use<AMTFileInfo> read GetCandidates;
+  property Count as int read GetCount ;
+
+  function AddWithAttr(APath as str, AAttr as int, ASize as int) {
+    dim info as use<AMTFileInfo>;
+    info.Path = APath ;
+    info.Size = ASize ;
+    info.Viewed = AAttr & faArchive ? false : true ;
+    info.RdOnly = AAttr & faReadOnly ? true : false ;
+    info.Frames = 0 ;
+    info.DropCount = 0 ;
+    info.ScrambleCount = 0 ;
+    info.FPS = 0.0 ;
+    info.Elected = true ;
+    pushto(Files,info);
+  }
+
+  function Add(APath as str) {
+    AddWithAttr(APath, FileGetAttr(APath), -1);
+  }
+
+  function Analyze() {
+    foreach( dim info : Files) {
+      info.Analyze();
+    }
+  }
+
+  function Elect() {
+    // DONE: 候補の選出
+    // 再生時間最長の動画を検出
+    dim maxSec=0;
+    foreach( dim info : Files) {
+      dim sec=info.Seconds();
+      if(sec>maxSec) maxSec=sec ;
+    }
+    // 再生時間最長の動画より、5秒以上再生時間の短いものを却下
+	// (中途半端な録画状態で終わっている録画ミスが発生しているものを却下)
+    foreach( dim info : Files) {
+      dim sec=info.Seconds();
+      if(sec+5<maxSec)
+        info.Elected = false ;
+    }
+    // 最小ドロップ数を検出
+    dim minDrop=INT_MAX;
+    foreach( dim info : Files) {
+      if(!info.Elected) continue;
+      if(info.DropCount<minDrop)
+        minDrop=info.DropCount ;
+    }
+    // 最小ドロップ数より多いものを却下
+    foreach( dim info : Files) {
+      if(!info.Elected) continue;
+      if(info.DropCount>minDrop)
+        info.Elected = false ;
+    }
+    // 最小スクランブル数を検出
+    dim minScramble=INT_MAX;
+    foreach( dim info : Files) {
+      if(!info.Elected) continue;
+      if(info.ScrambleCount<minScramble)
+        minScramble=info.ScrambleCount ;
+    }
+    // 最小スクランブル数より多いものを却下
+    foreach( dim info : Files) {
+      if(!info.Elected) continue;
+      if(info.ScrambleCount>minScramble)
+        info.Elected = false ;
+    }
+    // 最小ファイルサイズを検出
+    dim minSize=INT_MAX;
+    foreach( dim info : Files) {
+      if(!info.Elected) continue;
+      if(info.Size>=0&&info.Size<minSize)
+        minSize = info.Size;
+    }
+    // 最小ファイルサイズより大きいものを却下
+    foreach( dim info : Files) {
+      if(!info.Elected) continue;
+      if(info.Size<0||info.Size>minSize)
+        info.Elected = false;
+    }
+  }
+
+  function SetForceViewed(viewed as int) {
+    ForceViewed = viewed ;
+  }
+
+  function SetForceRdOnly(rdonly as int) {
+    ForceRdOnly = rdonly ;
+  }
+
+
+CONSTRUCT: {
+
+    ForceViewed=false;
+    ForceRdOnly=false;
+    return;
+  }
+
+@end

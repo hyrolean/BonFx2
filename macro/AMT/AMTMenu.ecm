@@ -1,0 +1,64 @@
+unit AMTMenu;
+uses Reserved;
+
+  uses AMTMvConverted, AMTAttrReflect;
+
+  dim HMenuMvConverted as int ;
+  dim HMenuBar as int ;
+  dim HMenuReflect as int ;
+    dim HMenuReflectViewed as int ;
+    dim HMenuReflectRdOnly as int ;
+
+@global
+
+INITIALIZE: {
+
+  HMenuMvConverted = NULL ;
+  HMenuBar = NULL ;
+  HMenuReflect = NULL ;
+  HMenuReflectViewed = NULL ;
+  HMenuReflectRdOnly = NULL ;
+  return;
+}
+
+ENTRY: {
+
+  MacroEntryCaption("Amatsukaze");
+  if(HMenuMvConverted == NULL) {
+    HMenuMvConverted = SubMenuCreate(NULL,"MENU_MV_CONVERTED_ACTION");
+    SubMenuEntryCaption(HMenuMvConverted,"コンバート済動画の仕分け");
+  }
+  if(HMenuBar == NULL) {
+    HMenuBar = SubMenuCreate(NULL,"");
+    SubMenuEntryCaption(HMenuBar,"-");
+  }
+  if(HMenuReflect == NULL) {
+    HMenuReflect = SubMenuCreate(NULL,"");
+    SubMenuEntryCaption(HMenuReflect,"属性の再反映");
+    if(HMenuReflectViewed == NULL) {
+      HMenuReflectViewed = SubMenuCreate(HMenuReflect,"MENU_REFLECT_VIEWED_ACTION");
+      SubMenuEntryCaption(HMenuReflectViewed,"視聴済属性の再反映");
+    }
+    if(HMenuReflectRdOnly == NULL) {
+      HMenuReflectRdOnly = SubMenuCreate(HMenuReflect,"MENU_REFLECT_RDONLY_ACTION");
+      SubMenuEntryCaption(HMenuReflectRdOnly,"読取専用属性の再反映");
+    }
+  }
+  return;
+}
+
+MENU_MV_CONVERTED_ACTION: {
+  DoMvConvertedAction();
+  return;
+}
+
+MENU_REFLECT_VIEWED_ACTION: {
+  DoReflectViewedAction();
+  return;
+}
+
+MENU_REFLECT_RDONLY_ACTION: {
+  DoReflectRdOnlyAction();
+  return;
+}
+
