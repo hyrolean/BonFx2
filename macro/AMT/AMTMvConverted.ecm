@@ -20,11 +20,14 @@ const SrcPaths[] = str {
 // OUT: コンバートされた動画の候補の中から選りすぐって仕分けした候補の移動先
 const DestPath = R"^(Z:\Recording\VCR\Converted\)^" ;
 
-// REF: 普段メインストリームとして視聴用に使っているフォルダのパス
+// REF: 普段メインストリームとして視聴用に使っているフォルダのパス(複数指定可)
 //      仕分け結果とダブった動画があれば,自動的にtrashに移動される
-//      ちなみに,このパスが空 "" の場合は何も行われない
-const OrgPath  = R"^(X:\Recording\VCR\Converted\)^" ;
-//const OrgPath  = "" ;
+//      ちなみに,このパスが空 {""} の場合は何も行われない
+const OrgPaths[]  = str {
+  R"^(X:\Recording\VCR\Converted\)^",   // Path of the main recording PC
+  R"^(V:\Recording\VCR\Converted\)^"    // Path of the spare recording PC
+};
+//const OrgPaths  = str {""} ;
 
 // 操作の対象とする動画のワイルドカード一覧
 const TargetWildCards[] = str {
@@ -201,20 +204,22 @@ function DoMvConvertedAction()
         for(dim i=0,n=candi.Count;i<n;i++) {
           dim info = candi.Candidates[i] ;
           dim fname = ExtractFileName(info.Path) ;
-          if(OrgPath!="") {
-            dim orgFileName = OrgPath + fname;
-            prog.Caption = name ;
-            if(FileExists(orgFileName)) {
-              dim attr = FileGetAttr(orgFileName);
-              if(!(attr & faArchive)) {
-                AppendMessage("  <視聴済> %s"%orgFileName);
-                candi.SetForceViewed(true);
-                viewed_set.Insert(fname);
-              }
-              if(attr & faReadOnly) {
-                AppendMessage("  <読取専用> %s"%orgFileName);
-                candi.SetForceRdOnly(true);
-                rdonly_set.Insert(fname);
+          foreach(dim OrgPath : OrgPaths) {
+            if(OrgPath!="") {
+              dim orgFileName = OrgPath + fname;
+              prog.Caption = name ;
+              if(FileExists(orgFileName)) {
+                dim attr = FileGetAttr(orgFileName);
+                if(!(attr & faArchive)) {
+                  AppendMessage("  <視聴済> %s"%orgFileName);
+                  candi.SetForceViewed(true);
+                  viewed_set.Insert(fname);
+                }
+                if(attr & faReadOnly) {
+                  AppendMessage("  <読取専用> %s"%orgFileName);
+                  candi.SetForceRdOnly(true);
+                  rdonly_set.Insert(fname);
+                }
               }
             }
           }
@@ -264,10 +269,13 @@ function DoMvConvertedAction()
       else {
         prog.Title = "不要候補のTrash";
         //trashフォルダを作成
-        foreach(dim path : SrcPaths) {
-          CreateDir(path+"trash");
+        foreach(dim SrcPath : SrcPaths) {
+          CreateDir(SrcPath+"trash");
         }
-        CreateDir(OrgPath+"trash");
+        foreach(dim OrgPath : OrgPaths) {
+          if(OrgPath!="")
+            CreateDir(OrgPath+"trash");
+        }
       }
       prog.Caption = "";
       prog.Max = SrcMap.Count ;
@@ -292,13 +300,17 @@ function DoMvConvertedAction()
             if(!r) {Canceled=true;break;}
             cnt++;
           }
-          if(!TestMove&&OrgPath!="") {
-            dim orgFileName = OrgPath+fname ;
-            if(FileExists(orgFileName)) {
-              dim trash = OrgPath+"trash\\"+fname;
-              dim r = DoMoveConverted(orgFileName,trash);
-              if(!r) {Canceled=true;break;}
-              cnt++;
+          if(!TestMove) {
+            foreach(dim OrgPath : OrgPaths) {
+              if(OrgPath!="") {
+                dim orgFileName = OrgPath+fname ;
+                if(FileExists(orgFileName)) {
+                  dim trash = OrgPath+"trash\\"+fname;
+                  dim r = DoMoveConverted(orgFileName,trash);
+                  if(!r) {Canceled=true;break;}
+                  cnt++;
+                }
+              }
             }
           }
         }
