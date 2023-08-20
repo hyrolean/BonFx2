@@ -106,9 +106,13 @@ BOOL REDUCESPACECHANGE   = TRUE ;
 // チャンネル切替時にメインスレッドの優先度を極限まで上げておくかどうか
 BOOL TIMECRITICALTUNING  = FALSE ;
 
+// チャンネル切替時にメインスレッドをスリープさせずに時間の経過を待つかどうか
+BOOL ACTIVEDELAYTUNING   = TRUE ;
+
 // 高精度割込タイマー
 BOOL USEMMTIMER = TRUE ; // マルチメディアタイマー使用有無
 BOOL USEHRTIMER = FALSE ; // ハイレゾリューションタイマー使用有無
+BOOL USEHPETIMER = FALSE ; // ハイプレシジョンイベントタイマー使用有無
 
 //リモコンのコマンド下二桁．0x04NN
 #define REMOCON_POWERON     0x8BU
@@ -232,6 +236,59 @@ extern "C" __declspec(dllexport) IBonDriver * CreateBonDriver()
     int mm_interval_lock::refCnt=0;
     #define MMINTERVAL_PERIOD 10
 
+    class perf_sleeper {
+      LARGE_INTEGER pfreq;
+      LARGE_INTEGER pcnt_org;
+      DWORD ptick_org;
+      BOOL perf_ok ;
+    public:
+      perf_sleeper(bool do_init=true) {
+        if(do_init) init();
+      }
+      void init() {
+        if(USEHPETIMER) {
+          perf_ok = QueryPerformanceFrequency(&pfreq);
+          if(perf_ok) {
+            perf_ok = QueryPerformanceCounter(&pcnt_org);
+            if(perf_ok)
+              ptick_org = DWORD((pcnt_org.QuadPart*1000ULL/pfreq.QuadPart)&0xFFFFFFFFULL) ;
+          }
+        }else perf_ok=FALSE;
+      }
+      DWORD tick() {
+        if(perf_ok) {
+          LARGE_INTEGER pcnt ;
+          if(QueryPerformanceCounter(&pcnt)) {
+            return DWORD(((pcnt.QuadPart-pcnt_org.QuadPart)*1000ULL/pfreq.QuadPart+ptick_org)&0xFFFFFFFFULL) ;
+          }
+        }
+        if(USEMMTIMER)
+          return timeGetTime();
+        return GetTickCount();
+      }
+      void delay(DWORD wait,DWORD base) {
+        if(ACTIVEDELAYTUNING) {
+          DWORD t ;
+          do { t = tick(); } while(Elapsed(base,t)<wait);
+        }else {
+        #ifdef PRY8EAlByw_HRTIMER
+          HRSleep(wait);
+        #else
+          Sleep(wait);
+        #endif
+        }
+      }
+      void delay(DWORD wait) { delay(wait,tick()); }
+      DWORD sleep(DWORD wait,DWORD start) {
+        if(!wait) return start ;
+        DWORD base = tick();
+        DWORD past = Elapsed(start,base) ;
+        if(wait>past) delay(wait-past,base);
+        return start+wait ;
+      }
+      DWORD sleep(DWORD wait) { return sleep(wait,tick()); }
+    };
+
 //////////////////////////////////////////////////////////////////////
 // 構築/消滅
 //////////////////////////////////////////////////////////////////////
@@ -248,6 +305,7 @@ CBonTuner::CBonTuner()
     , m_cLastSpace(0xFF)
     , m_dwCurChannel(50)
     , m_bU3BSFixDone(FALSE)
+    , m_perf_sleeper(NULL)
 {
     m_pThis = this;
     m_bytesProceeded = 0 ;
@@ -284,6 +342,7 @@ const BOOL CBonTuner::OpenTuner()
     try{
 
         mm_interval_lock interlock(MMINTERVAL_PERIOD);
+        perf_sleeper sleeper;
 
 		// 非同期FIFOバッファオブジェクト作成
         m_AsyncTSFifo = new CAsyncFifo(
@@ -327,7 +386,7 @@ const BOOL CBonTuner::OpenTuner()
         // 成功
         if(AUTOPOWERON) {
           IRCodeTX(REMOCON_POWERON);    //電源を入れる
-          HRSleep(BUTTONPOWERWAIT) ;
+          sleeper.sleep(BUTTONPOWERWAIT) ;
         }
 
         // DT-300 古いファームウェアの BS チューニングバグ対策 Method #1
@@ -352,6 +411,7 @@ const BOOL CBonTuner::OpenTuner()
 
 void CBonTuner::CloseTuner()
 {
+    perf_sleeper sleeper;
     BOOL power=FALSE ;
     DWORD power_start = 0 ;
 
@@ -372,22 +432,22 @@ void CBonTuner::CloseTuner()
 
         // 終了時にNHKにチャンネルを戻すかどうか
         if(AUTOTUNEBACKTONHK) {
-          HRSleep(COMMANDSENDWAIT) ;
+          sleeper.sleep(COMMANDSENDWAIT) ;
           IRCodeTX(REMOCON_CHIDEJI) ;
           IRCodeTX(REMOCON_NUMBER_1) ;
         }
 
         // 電源を切る
         if(AUTOPOWEROFF) {
-          HRSleep(COMMANDSENDWAIT) ;
+          sleeper.sleep(COMMANDSENDWAIT) ;
           IRCodeTX(REMOCON_POWEROFF);
           power = TRUE ;
-          power_start = PastSleep() ;
+          power_start = sleeper.tick() ;
         }
 
         // リモコンロックの開放
         if(IRLOCK) {
-          HRSleep(COMMANDSENDWAIT) ;
+          sleeper.sleep(COMMANDSENDWAIT) ;
           IRCodeTX(0) ;
         }
 
@@ -413,27 +473,29 @@ void CBonTuner::CloseTuner()
     m_dwCurChannel = 50 ;
 
     // 電源OFF後のスリープ調整
-    if(power) PastSleep(BUTTONPOWEROFFDELAY,power_start);
+    if(power) sleeper.sleep(BUTTONPOWEROFFDELAY,power_start);
 }
 
 BOOL CBonTuner::U3BSFixTune()
 {
-  HRSleep(COMMANDSENDWAIT) ;
+  perf_sleeper sleeper;
+  sleeper.sleep(COMMANDSENDWAIT) ;
   if(
     !IRCodeTX(REMOCON_BS)    ||
     !IRCodeTX(REMOCON_MENU)  ||
     !IRCodeTX(REMOCON_DOWN)  ||
     !IRCodeTX(REMOCON_ENTER) ||
     !IRCodeTX(REMOCON_ENTER)    )  return FALSE ;
-  HRSleep(U3BSFIXWAIT) ;  // BS-Digital 検出まで約14-5秒くらいかかる
+  sleeper.sleep(U3BSFIXWAIT) ;  // BS-Digital 検出まで約14-5秒くらいかかる
   if(!IRCodeTX(REMOCON_MENU)) return FALSE ;
-  HRSleep(BUTTONSPACEWAIT) ;
+  sleeper.sleep(BUTTONSPACEWAIT) ;
   return TRUE ;
 }
 
 BOOL CBonTuner::U3BSFixResetChannel()
 {
-  HRSleep(COMMANDSENDWAIT) ;
+  perf_sleeper sleeper;
+  sleeper.sleep(COMMANDSENDWAIT) ;
   if(
     !IRCodeTX(REMOCON_BS) ||
     !IRCodeTX(REMOCON_3DIGITS) ||
@@ -458,8 +520,8 @@ const BOOL CBonTuner::SetChannel(const BYTE bCh)
         return FALSE;
     }
 
-	//Fx側FIFOバッファ停止
-	ResetFxFifo(true);
+    //Fx側FIFOバッファ停止
+    ResetFxFifo(true);
     // TSデータパージ
     PurgeTsStream();
 
@@ -467,12 +529,24 @@ const BOOL CBonTuner::SetChannel(const BYTE bCh)
     //チャンネル切替の前にシステムの割込み効率を極限まで上げておく
     mm_interval_lock interlock(MMINTERVAL_PERIOD);
 
+    class null_finisher {
+      void **lplpObj;
+    public:
+      null_finisher(void **lplpObj_) : lplpObj(lplpObj_) {}
+      ~null_finisher() {*lplpObj=NULL;}
+    };
+
+    perf_sleeper sleeper;
+    m_perf_sleeper = &sleeper ;
+    null_finisher finisher(&m_perf_sleeper);
+
     PastSleep(COMMANDSENDINTERVAL,m_tkLastCommandSend);
+    DWORD s=sleeper.tick();
     for(size_t j = 0; j < COMMANDSENDTIMES; j++){
-        HRSleep(COMMANDSENDWAIT) ;
+        s=sleeper.sleep(COMMANDSENDWAIT,s) ;
         for(size_t i = 0; i < min<size_t>(m_Channels[bCh].rcode.size(),REMOCON_CMD_LEN); i++){
             BYTE code = m_Channels[bCh].rcode[i] ;
-            if(!IRButtonTX(code)){
+            if(!IRButtonTX(code,&s)){
                  DBGOUT("Failed to send button. [code=%d]",code) ;
                  return FALSE ;
             }
@@ -480,26 +554,10 @@ const BOOL CBonTuner::SetChannel(const BYTE bCh)
     }
     m_tkLastCommandSend=PastSleep() ;
 
-    // チャンネル情報を更新
-    /*
-    m_dwCurSpace=0;
-    m_dwCurChannel=0;
-    wstring space;
-    for(int i=0;i<bCh;i++) {
-      if(!i) space = m_Channels[bCh].space ;
-      else if (m_Channels[bCh].space!=space) {
-        space = m_Channels[bCh].space ;
-        m_dwCurSpace++,m_dwCurChannel=0 ;
-        continue ;
-      }
-      m_dwCurChannel++;
-    }
-    */
+    //Fx側FIFOバッファ初期化
+    ResetFxFifo(false);
 
-	//Fx側FIFOバッファ初期化
-	ResetFxFifo(false);
-
-	HRSleep(CHANNELCHANGEWAIT);
+    sleeper.sleep(CHANNELCHANGEWAIT);
 
     //ストリーム送る
     is_channel_valid = TRUE;
@@ -671,8 +729,12 @@ void CBonTuner::OnFinishWriteBack(const DWORD dwThreadIndex, BYTE *pData, DWORD 
 
 
 // 0x04NNを送信
-BOOL CBonTuner::IRCodeTX(BYTE code)
+BOOL CBonTuner::IRCodeTX(BYTE code, DWORD *p_s)
 {
+    perf_sleeper sleeper_(false) ;
+    perf_sleeper *sleeper = static_cast<perf_sleeper*>(m_perf_sleeper);
+    if(!sleeper) { sleeper = &sleeper_ ; sleeper_.init() ; }
+
     BYTE *cmd = static_cast<BYTE*>(m_IRCmdBuffer.data()) ;
     DWORD len = 0 ;
 
@@ -688,11 +750,11 @@ BOOL CBonTuner::IRCodeTX(BYTE code)
     }
 
     DWORD success = 0 ;
-    DWORD s = Elapsed() , t=s ;
+    DWORD s = p_s ? *p_s : sleeper->tick() , t=s ;
 
     //ボタン押下
     exclusive_lock elock(&m_coXfer);
-    for(DWORD e=0,n=BUTTONPRESSWAIT/BUTTONTXWAIT;BUTTONPRESSWAIT>e;e=Elapsed(s)) {
+    for(DWORD e=0,n=BUTTONPRESSWAIT/BUTTONTXWAIT;BUTTONPRESSWAIT>e;e=Elapsed(s,sleeper->tick())) {
       len = 0;
       for(DWORD i=0;i<BUTTONPRESSTIMES;i++) {
         cmd[len++] = CMD_IR_CODE;
@@ -702,20 +764,20 @@ BOOL CBonTuner::IRCodeTX(BYTE code)
       }
       if(m_pUsbFx2Driver->TransmitData(EPINDEX_OUT,cmd,len)) {
         if(++success>=n) break ;
-        t=PastSleep(BUTTONTXWAIT,t) ;
+        t=sleeper->sleep(BUTTONTXWAIT,t) ;
       }
     }
     if(!success)
       return FALSE ;
-    //PastSleep(BUTTONPRESSWAIT,s);
+    //sleeper->sleep(BUTTONPRESSWAIT,s);
 
     elock.unlock();
-    t = s = PastSleep(BUTTONINTERIMWAIT+BUTTONPRESSWAIT,s);
+    t = s = sleeper->sleep(BUTTONINTERIMWAIT+BUTTONPRESSWAIT,s);
 
     //ボタン開放
     success = 0 ;
     elock.lock();
-    for(DWORD e=0,n=BUTTONRELEASEWAIT/BUTTONTXWAIT;BUTTONRELEASEWAIT>e;e=Elapsed(s)) {
+    for(DWORD e=0,n=BUTTONRELEASEWAIT/BUTTONTXWAIT;BUTTONRELEASEWAIT>e;e=Elapsed(s,sleeper->tick())) {
       len = 0;
       for(DWORD i=0;i<BUTTONRELEASETIMES;i++) {
         cmd[len++] = CMD_IR_CODE;
@@ -725,7 +787,7 @@ BOOL CBonTuner::IRCodeTX(BYTE code)
       }
       if(m_pUsbFx2Driver->TransmitData(EPINDEX_OUT,cmd,len)) {
         if(++success>=n) break ;
-        t=PastSleep(BUTTONTXWAIT,t) ;
+        t=sleeper->sleep(BUTTONTXWAIT,t) ;
       }
     }
     if(!success)
@@ -739,13 +801,15 @@ BOOL CBonTuner::IRCodeTX(BYTE code)
       case REMOCON_CS:
         if(m_cLastSpace!=code) {
           m_cLastSpace = code ;
-          s=PastSleep(BUTTONSPACEWAIT+BUTTONRELEASEWAIT,s);
+          s=sleeper->sleep(BUTTONSPACEWAIT+BUTTONRELEASEWAIT,s);
         }
         break ;
       default:
-        s=PastSleep(BUTTONRELEASEWAIT,s);
+        s=sleeper->sleep(BUTTONRELEASEWAIT,s);
         break ;
     }
+
+    if(p_s) *p_s = s ;
 
     return TRUE;
 }
@@ -858,8 +922,10 @@ bool CBonTuner::LoadIniFile(string strIniFileName)
   LOADINT(BUTTONPOWEROFFDELAY) ;
   LOADINT(REDUCESPACECHANGE) ;
   LOADINT(TIMECRITICALTUNING) ;
+  LOADINT(ACTIVEDELAYTUNING) ;
   LOADINT(USEMMTIMER) ;
   LOADINT(USEHRTIMER) ;
+  LOADINT(USEHPETIMER) ;
   #undef LOADINT
   #undef LOADSTR2
   #undef LOADSTR
@@ -951,16 +1017,20 @@ BYTE CBonTuner::ConvButtonToCode(BYTE button)
     }
 }
 
-BOOL CBonTuner::IRButtonTX(BYTE button)
+BOOL CBonTuner::IRButtonTX(BYTE button, DWORD *p_s)
 {
   BYTE code = ConvButtonToCode(button) ;
 
   // DT-300 古いファームウェアの BS チューニングバグ対策 Method #2
   if( U3BSFIXTUNE==2 && !m_bU3BSFixDone && code==REMOCON_BS ) {
-    return m_bU3BSFixDone = U3BSFixTune() ;
+    m_bU3BSFixDone = U3BSFixTune();
+    if(m_perf_sleeper&&p_s) {
+      *p_s = static_cast<perf_sleeper*>(m_perf_sleeper)->tick();
+    }
+    return m_bU3BSFixDone ;
   }
 
-  return IRCodeTX(code) ;
+  return IRCodeTX(code, p_s) ;
 }
 
 LPCTSTR CBonTuner::GetTunerName(void)

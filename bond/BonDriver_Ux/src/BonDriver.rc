@@ -4,8 +4,8 @@
 
 LANGUAGE LANG_JAPANESE, SUBLANG_DEFAULT
 1 VERSIONINFO
- FILEVERSION 0,2023,1,11
- PRODUCTVERSION 0,2023,1,11
+ FILEVERSION 0,2023,8,20
+ PRODUCTVERSION 0,2023,8,20
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -22,11 +22,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "似非プログラマ"
             VALUE "FileDescription", "EpgDataCap_Bon+亀付きユニデン用BonDriver"
-            VALUE "FileVersion", "0,2023,1,11"
+            VALUE "FileVersion", "0,2023,8,20"
             VALUE "InternalName", "BonDriver_Ux.dll"
             VALUE "LegalCopyright", "色々なファイルを参照。各作者様には多謝！"
             VALUE "OriginalFilename", "BonDriver_U?ID?.dll"
-            VALUE "ProductVersion", "0,2023,1,11"
+            VALUE "ProductVersion", "0,2023,8,20"
             VALUE "Comments", "MOD by PRY8EAlByw 2012-2023"
         END
     END

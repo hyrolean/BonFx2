@@ -12,6 +12,44 @@
       <LastImportedDeadFilesDeleting> y
       <LastImportedEmptyNodesDeleting> y
       [nodes] {
+        [unified] {
+          <ReadOnly> n
+          <AbsolutePath> n
+          <Priority> 0
+          [files] {
+            [unified\\cusb2.cpp] {}
+            [unified\\cusb2.h] {}
+            [unified\\CyAPI.h] {}
+            [unified\\dbtrace.cpp] {}
+            [unified\\dbtrace.h] {}
+            [unified\\HRTimer.cpp] {}
+            [unified\\HRTimer.h] {}
+            [unified\\IBonDriver.h] {}
+            [unified\\IBonDriver2.h] {}
+            [unified\\IBonDriver3.h] {}
+            [unified\\IBonTransponder.h] {}
+            [unified\\pryutil.cpp] {}
+            [unified\\pryutil.h] {}
+            [unified\\UsbFx2Driver.cpp] {}
+            [unified\\UsbFx2Driver.h] {}
+          }
+          [nodes] {
+            [libunified] {
+              <ReadOnly> n
+              <AbsolutePath> n
+              <Priority> 0
+              [files] {
+                [unified\\libunified\\libunified.vcproj] {}
+                [unified\\libunified\\libunified.vcxproj] {}
+                [unified\\libunified\\ReadMe.txt] {}
+                [unified\\libunified\\stdafx.cpp] {}
+                [unified\\libunified\\stdafx.h] {}
+                [unified\\libunified\\targetver.h] {}
+              }
+              [nodes] {}
+            }
+          }
+        }
         [bond] {
           <ReadOnly> n
           <AbsolutePath> n
@@ -146,44 +184,6 @@
             }
           }
         }
-        [unified] {
-          <ReadOnly> n
-          <AbsolutePath> n
-          <Priority> 0
-          [files] {
-            [unified\\cusb2.cpp] {}
-            [unified\\cusb2.h] {}
-            [unified\\CyAPI.h] {}
-            [unified\\dbtrace.cpp] {}
-            [unified\\dbtrace.h] {}
-            [unified\\HRTimer.cpp] {}
-            [unified\\HRTimer.h] {}
-            [unified\\IBonDriver.h] {}
-            [unified\\IBonDriver2.h] {}
-            [unified\\IBonDriver3.h] {}
-            [unified\\IBonTransponder.h] {}
-            [unified\\pryutil.cpp] {}
-            [unified\\pryutil.h] {}
-            [unified\\UsbFx2Driver.cpp] {}
-            [unified\\UsbFx2Driver.h] {}
-          }
-          [nodes] {
-            [libunified] {
-              <ReadOnly> n
-              <AbsolutePath> n
-              <Priority> 0
-              [files] {
-                [unified\\libunified\\libunified.vcproj] {}
-                [unified\\libunified\\libunified.vcxproj] {}
-                [unified\\libunified\\ReadMe.txt] {}
-                [unified\\libunified\\stdafx.cpp] {}
-                [unified\\libunified\\stdafx.h] {}
-                [unified\\libunified\\targetver.h] {}
-              }
-              [nodes] {}
-            }
-          }
-        }
       }
       [files] {
         [.gitignore] {}
@@ -279,6 +279,12 @@
     [AdditionalEnvironments] {
       <VSMSBUILDCMD> "%VS140COMNTOOLS%VsMSBuildCmd.bat"
       <VSVARS32_2008> "%VS90COMNTOOLS%VsVars32.bat"
+    }
+    [Editor] {
+      <TabIndent> n
+      <SoftTab> y
+      <IndentWidth> 2
+      <IndentUseTab> n
     }
   }
   [Diagram] {

@@ -74,8 +74,8 @@ public:
 
     /*‚±‚Ì•Ó’Ç‰Á*/
     BOOL InitTunerProperty(void);
-    BOOL IRCodeTX(BYTE code);
-    BOOL IRButtonTX(BYTE button);
+    BOOL IRCodeTX(BYTE code, DWORD *p_s=NULL);
+    BOOL IRButtonTX(BYTE button, DWORD *p_s=NULL);
     BYTE ConvButtonToCode(BYTE button);
 
 protected:
@@ -113,6 +113,7 @@ protected:
 
     WORD m_wIRBase ;
     BUFFER<BYTE> m_IRCmdBuffer ;
+    void *m_perf_sleeper;
 
     DWORD m_dwFifoThreadIndex;
 
