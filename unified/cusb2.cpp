@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <process.h>
 #include "cusb2.h"
+#include "HRTimer.h"
 
 
 // Modified by Šg’£ƒc[ƒ‹’†‚Ìl
