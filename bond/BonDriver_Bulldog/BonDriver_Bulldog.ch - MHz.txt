@@ -1,4 +1,4 @@
-; BonDriver_Bulldog 用 チャンネルファイル周波数MHz表記版 (2022/5/3)
+; BonDriver_Bulldog 用 チャンネルファイル周波数MHz表記版 (2024/6/27)
 ;
 ;       チャンネル情報を変更する場合は、このファイルを編集して
 ;       プレフィックスが同じ名前のドライバと同ディレクトリに
@@ -150,20 +150,19 @@ BS, 1049.48MHz/TS0,BS01/TS0 ;ＢＳ朝日１
 BS, 1049.48MHz/TS1,BS01/TS1 ;ＢＳ－ＴＢＳ
 BS, 1049.48MHz/TS2,BS01/TS2 ;ＢＳテレ東
 BS, 1087.84MHz/TS0,BS03/TS0 ;ＷＯＷＯＷプライム
-BS, 1087.84MHz/TS1,BS03/TS1 ;ＮＨＫＢＳプレミアム
+BS, 1087.84MHz/TS1,BS03/TS1 ;ＮＨＫ
 BS, 1126.20MHz/TS0,BS05/TS0 ;ＷＯＷＯＷライブ
 BS, 1126.20MHz/TS1,BS05/TS1 ;ＷＯＷＯＷシネマ
 BS, 1202.92MHz/TS0,BS09/TS0 ;ＢＳ１１イレブン
-BS, 1202.92MHz/TS1,BS09/TS1 ;スターチャンネル１
+;BS, 1202.92MHz/TS1,BS09/TS1
 BS, 1202.92MHz/TS2,BS09/TS2 ;ＢＳ１２トゥエルビ
-BS, 1241.28MHz/TS1,BS11/TS1 ;ＢＳスカパー！
-BS, 1241.28MHz/TS2,BS11/TS2 ;放送大学ｅｘ
+BS, 1241.28MHz/TS2,BS11/TS2 ;放送大学テレビ
 BS, 1241.28MHz/TS3,BS11/TS3 ;ＢＳ釣りビジョン
 BS, 1279.64MHz/TS0,BS13/TS0 ;ＢＳ日テレ
 BS, 1279.64MHz/TS1,BS13/TS1 ;ＢＳフジ・１８１
 BS, 1279.64MHz/TS2,BS13/TS2 ;ＢＳアニマックス
-BS, 1318.00MHz/TS1,BS15/TS1 ;ＮＨＫＢＳ１
-BS, 1318.00MHz/TS2,BS15/TS2 ;スターチャンネル２
+BS, 1318.00MHz/TS1,BS15/TS1 ;ＮＨＫ　ＢＳ
+BS, 1318.00MHz/TS2,BS15/TS2 ;スターチャンネル
 BS, 1394.72MHz/TS0,BS19/TS0 ;Ｊ　ＳＰＯＲＴＳ　４
 BS, 1394.72MHz/TS1,BS19/TS1 ;Ｊ　ＳＰＯＲＴＳ　１
 BS, 1394.72MHz/TS2,BS19/TS2 ;Ｊ　ＳＰＯＲＴＳ　２

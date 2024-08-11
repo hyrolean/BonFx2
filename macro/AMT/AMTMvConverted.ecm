@@ -4,7 +4,7 @@ uses Reserved;
 // Amatsukaze コンバート結果の動画を複数の候補の中から最良なものを自動的にチョイスして DestPath に移動して仕分けする.
 
 const TestMode = true ; // 動作をテストしてシミュレートするモード. 実際の動画の仕分けは行われない.
-const TestMove = true ; // 移動のテストを行うモード. 選出候補は DestPath ではなく,動画直下のtestフォルダに仮移動される.
+const TestMove = false ; // 移動のテストを行うモード. 選出候補は DestPath ではなく,動画直下のtestフォルダに仮移動される.
 
 // 注意:: TestMode=false, TestMove=false の本番モードでは,やり直しが利きません.
 //        事前に動画のバックアップを採っておくことを強くお勧めします.
@@ -57,7 +57,7 @@ function EntryFiles(path as str, mask as str) as int
       dim prefix = ChangeFileExt(name,"");
       dim filename = path + name;
       dim elem = SrcMap.Items[prefix] ;
-      elem.AddWithAttr(filename,FoundAttr(hFind),FoundSize(hFind));
+      elem.AddWithAttr(filename,FoundAttr(hFind),FoundSize(hFind),FoundSizeHigh(hFind));
       //OutputMessage(R"(  + ファイル "%s" を候補に追加しました。)"%filename);
       cnt++;
     }while(FindNext(hFind));
@@ -168,7 +168,8 @@ function DoMvConvertedAction()
           ss = info.Seconds() ;
           mm = ss / 60 ; ss %= 60 ;
           dim appendStr = "  %d) %s <%02d:%02d>" % (i+1) % info.Path % mm % ss ;
-          if(info.Size>0) appendStr += " %d." % info.Size ;
+          // DONE : サイズの表示
+          if(info.Size>0) appendStr += " %lld." % info.Size ;
           if(info.DropCount>0) appendStr += " drop(%d)" % info.DropCount ;
           if(info.ScrambleCount>0) appendStr += " scramble(%d)" % info.ScrambleCount ;
           if(info.Elected) appendStr += " *";
@@ -291,6 +292,7 @@ function DoMvConvertedAction()
           break ;
         }
         AppendMessage(" "+name);
+        dim TestDoneOrgs as use<Set<str>> ;
         for(dim i=0,n=candi.Count;i<n;i++) {
           dim info = candi.Candidates[i] ;
           dim fname = ExtractFileName(info.Path);
@@ -302,7 +304,7 @@ function DoMvConvertedAction()
           }
           if(!TestMove) {
             foreach(dim OrgPath : OrgPaths) {
-              if(OrgPath!="") {
+              if(OrgPath!=""&&!TestDoneOrgs.Find(OrgPath)) {
                 dim orgFileName = OrgPath+fname ;
                 if(FileExists(orgFileName)) {
                   dim trash = OrgPath+"trash\\"+fname;
@@ -310,6 +312,7 @@ function DoMvConvertedAction()
                   if(!r) {Canceled=true;break;}
                   cnt++;
                 }
+                if(TestMode) TestDoneOrgs.Insert(OrgPath);
               }
             }
           }

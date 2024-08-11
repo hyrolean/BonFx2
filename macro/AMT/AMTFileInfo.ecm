@@ -6,7 +6,7 @@ uses Reserved;
 @global
 
   dim Path as str;
-  dim Size as int;
+  dim Size as use<_i64>;
   dim Viewed as int;
   dim RdOnly as int;
   dim Frames as int;
@@ -142,10 +142,10 @@ uses Reserved;
   property Candidates[Index as int] as use<AMTFileInfo> read GetCandidates;
   property Count as int read GetCount ;
 
-  function AddWithAttr(APath as str, AAttr as int, ASize as int) {
+  function AddWithAttr(APath as str, AAttr as int, ASize as int, ASizeHi as int) {
     dim info as use<AMTFileInfo>;
     info.Path = APath ;
-    info.Size = ASize ;
+    info.Size.Init(ASize,ASizeHi) ;
     info.Viewed = AAttr & faArchive ? false : true ;
     info.RdOnly = AAttr & faReadOnly ? true : false ;
     info.Frames = 0 ;
@@ -157,7 +157,7 @@ uses Reserved;
   }
 
   function Add(APath as str) {
-    AddWithAttr(APath, FileGetAttr(APath), -1);
+    AddWithAttr(APath, FileGetAttr(APath), -1, -1);
   }
 
   function Analyze() {
@@ -208,16 +208,17 @@ uses Reserved;
         info.Elected = false ;
     }
     // 最小ファイルサイズを検出
-    dim minSize=INT_MAX;
+    dim minSize as use<_i64> ;
+    minSize.InitMax();
     foreach( dim info : Files) {
       if(!info.Elected) continue;
-      if(info.Size>=0&&info.Size<minSize)
+      if(info.Size < minSize)
         minSize = info.Size;
     }
     // 最小ファイルサイズより大きいものを却下
     foreach( dim info : Files) {
       if(!info.Elected) continue;
-      if(info.Size<0||info.Size>minSize)
+      if(minSize < info.Size)
         info.Elected = false;
     }
   }
